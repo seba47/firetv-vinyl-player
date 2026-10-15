@@ -35,15 +35,14 @@ radio. Uso personal, sin publicar en ninguna tienda (sideload).
 - NewPipeExtractor usa APIs no oficiales: **se rompe cada tanto** cuando YouTube cambia algo.
   Diseñar para que actualizar la dependencia sea trivial (una línea + rebuild + reinstalar).
 - Va contra los ToS de YouTube: uso estrictamente personal, **repo privado**.
-- **Modelo del Fire TV a confirmar**: Configuración → Mi Fire TV → Acerca de. Si es "Fire TV Stick
-  4K (2nd Gen)" corre Fire OS 8 (Android) y acepta sideload. Si fuera "4K Select" (Vega OS, no
-  Android) este plan no sirve.
+- **Modelo del Fire TV confirmado**: Fire TV Stick 4K (2.ª gen), modelo AFTKM, Fire OS 8.1.8.2
+  (Android 11, API 30). Acepta sideload. (Los "4K Select" con Vega OS no sirven.)
 - Instalación por **adb por WiFi** desde la Mac: Fire TV → Mi Fire TV → Acerca de → apretar 7 veces
   el nombre del dispositivo → Opciones de desarrollador → activar depuración ADB y apps de origen
   desconocido → `adb connect <ip-del-firetv>:5555`.
 
 ## Plan por fases
-0. **Spike** (validar lo riesgoso primero): app mínima que busca un tema con NewPipeExtractor y lo
+0. ✅ **Spike** (hecho: extracción, Opus 160 kbps y sideload andan en el Fire TV real) (validar lo riesgoso primero): app mínima que busca un tema con NewPipeExtractor y lo
    reproduce con ExoPlayer, instalada en el Fire TV real. Confirma extracción, audio y sideload.
 1. **Estación infinita** + control remoto + MediaSession (sigue sonando en segundo plano, play/pausa
    del control, "Alexa, pausa" desde el control).
@@ -54,7 +53,7 @@ radio. Uso personal, sin publicar en ninguna tienda (sideload).
    NewPipeExtractor, README de instalación.
 
 ## Preguntas abiertas (preguntarme antes de avanzar en lo que dependa de ellas)
-1. Modelo exacto del Fire TV (ver arriba).
+1. ~~Modelo exacto del Fire TV~~ → confirmado (ver arriba).
 2. ¿Cómo elegir qué suena? Unas pocas estaciones fijas armadas una vez, o poder buscar desde la tele.
 3. ¿Hace falta mi biblioteca personal de YT Music (playlists, me gusta) o alcanza con búsqueda +
    radios públicas? NewPipeExtractor no usa login.
