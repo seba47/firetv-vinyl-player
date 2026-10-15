@@ -14,6 +14,8 @@ Sin servidor propio. Uso personal, sideload.
 - Control remoto: **→** siguiente · **OK** pausa · **↑↓** estaciones recientes · **≡** elegir música ·
   **Atrás** sale (la música sigue sonando de fondo; play/pausa del control y "Alexa, pausa" andan).
 - A los 3 minutos sin tocar nada queda solo el tocadiscos (salvapantallas propio).
+- Toques visuales (polvo y haz de luz, alabeo del vinilo, cambio de lado A/B en los discos): cada uno
+  se apaga con su llave en `app/src/main/java/app/vinilotv/ui/Touches.kt` y `scripts/install.sh`.
 
 ## Desde la Mac
 

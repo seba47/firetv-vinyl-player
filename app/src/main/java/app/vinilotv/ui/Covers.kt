@@ -33,7 +33,7 @@ private suspend fun load(context: Context, url: String?, size: Int): Bitmap? {
 }
 
 /** La tapa recortada en círculo (centro cuadrado del 16:9), del tamaño real de la etiqueta. */
-suspend fun bakeLabel(context: Context, url: String?, px: Int): ImageBitmap? {
+suspend fun bakeLabel(context: Context, url: String?, px: Int, sideLetter: Char? = null): ImageBitmap? {
     val src = load(context, url, 720) ?: return null
     return withContext(Dispatchers.Default) {
         val side = min(src.width, src.height)
@@ -45,6 +45,7 @@ suspend fun bakeLabel(context: Context, url: String?, px: Int): ImageBitmap? {
         canvas.drawCircle(px / 2f, px / 2f, px / 2f, paint)
         paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
         canvas.drawBitmap(src, Rect(sx, sy, sx + side, sy + side), Rect(0, 0, px, px), paint)
+        if (sideLetter != null) drawSideMark(canvas, px, sideLetter)
         out.asImageBitmap()
     }
 }
@@ -79,6 +80,21 @@ suspend fun bakeBackdrop(context: Context, url: String?): ImageBitmap {
         canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), vignette)
         out.asImageBitmap()
     }
+}
+
+/** Marca de lado en la etiqueta: el lado B apenas más oscuro y una plaquita de latón con la letra. */
+private fun drawSideMark(canvas: Canvas, px: Int, side: Char) {
+    if (side == 'B') canvas.drawColor(0x38000000, PorterDuff.Mode.SRC_ATOP)
+    val cx = px / 2f; val cy = px * .80f; val r = px * .085f
+    canvas.drawCircle(cx, cy + r * .12f, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x66000000 })
+    canvas.drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Palette.Brass.toArgb() })
+    val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Palette.WalnutDeep.toArgb()
+        textSize = r * 1.25f
+        textAlign = Paint.Align.CENTER
+        typeface = android.graphics.Typeface.create(android.graphics.Typeface.SERIF, android.graphics.Typeface.BOLD)
+    }
+    canvas.drawText(side.toString(), cx, cy - (text.ascent() + text.descent()) / 2f, text)
 }
 
 private fun withAlpha(argb: Int, a: Float) = (argb and 0x00FFFFFF) or ((255 * a).toInt() shl 24)

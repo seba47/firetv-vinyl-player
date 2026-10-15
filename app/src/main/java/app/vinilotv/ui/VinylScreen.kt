@@ -82,6 +82,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.ceil
+import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -105,6 +106,7 @@ private class DeckMotion {
     var liftVel = 0f
     var liftTarget = 1f
     var sequence = false              // un cambio de tema está moviendo el brazo "a mano"
+    var time by mutableFloatStateOf(0f)     // segundos desde que abrió (polvo y luz)
     var positionMs by mutableLongStateOf(0L)
     var durationMs by mutableLongStateOf(0L)
 
@@ -112,6 +114,7 @@ private class DeckMotion {
         val target = if (spinning) 200f else 0f                              // 33⅓ rpm = 200°/s
         speed += (target - speed) * (dt * if (spinning) 1.6f else 1.1f).coerceAtMost(1f)
         recordAngle = (recordAngle + speed * dt) % 360f
+        time += dt
         // giro del brazo: resorte casi amortiguado (inercia y se acomoda)
         val k = 16f; val c = 2f * sqrt(k) * .78f
         armVel += ((armTarget - armAngle) * k - armVel * c) * dt
@@ -127,7 +130,12 @@ private class DeckMotion {
 /** Ángulo del brazo según el avance: dentro de un disco avanza tema a tema hacia el centro. */
 private fun progressAngle(item: QueueItem?, positionMs: Long, durationMs: Long): Float {
     val p = if (durationMs > 0) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
-    val frac = if (item != null && item.albumIndex >= 0 && item.albumSize > 0) (item.albumIndex + p) / item.albumSize else p
+    val side = sideOf(item)
+    val frac = when {
+        side != null && Touches.SIDE_FLIP -> (side.index + p) / side.size          // cada lado empieza en el borde
+        item != null && item.albumIndex >= 0 && item.albumSize > 0 -> (item.albumIndex + p) / item.albumSize
+        else -> p
+    }
     return ARM_START + (ARM_END - ARM_START) * frac
 }
 
@@ -148,6 +156,8 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean) {
         val context = LocalContext.current
         val labelPx = (LABEL_R * 2 * k).toInt().coerceAtLeast(8)
         val discAway = remember { Animatable(0f) }
+        val discFlip = remember { Animatable(0f) }
+        val labelSide = { item: QueueItem? -> if (Touches.SIDE_FLIP) sideOf(item)?.letter else null }
         var lastItem by remember { mutableStateOf<QueueItem?>(null) }
 
         // Cuadro a cuadro: giro del disco, resortes del brazo y avance del tema.
@@ -172,14 +182,25 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean) {
             val prev = lastItem
             lastItem = next
             val newCover = next.track.thumbnailUrl
-            if (prev == null) { label = bakeLabel(context, newCover, labelPx); labelUrl = newCover; return@LaunchedEffect }
-            if (continuesAlbum(prev, next) && labelUrl == newCover) return@LaunchedEffect   // el surco sigue solo
+            if (prev == null) { label = bakeLabel(context, newCover, labelPx, labelSide(next)); labelUrl = newCover; return@LaunchedEffect }
+            val flip = Touches.SIDE_FLIP && continuesAlbum(prev, next) && sideOf(prev)?.letter == 'A' && sideOf(next)?.letter == 'B'
+            if (!flip && continuesAlbum(prev, next) && labelUrl == newCover) return@LaunchedEffect   // el surco sigue solo
             motion.sequence = true
             motion.liftTarget = 1f
             delay(380)
-            if (newCover != labelUrl) {
+            if (flip) {
+                // fin del lado A: el brazo vuelve, el disco se levanta, se da vuelta y vuelve a bajar
                 motion.armTarget = ARM_REST + 1.5f
-                val baked = async { bakeLabel(context, newCover, labelPx) }   // se prepara mientras el brazo vuelve
+                val baked = async { bakeLabel(context, newCover, labelPx, 'B') }
+                delay(900)
+                discFlip.animateTo(.5f, tween(700, easing = FastOutSlowInEasing))
+                label = baked.await()
+                discFlip.animateTo(1f, tween(700, easing = FastOutSlowInEasing))
+                discFlip.snapTo(0f)
+                labelUrl = newCover
+            } else if (newCover != labelUrl) {
+                motion.armTarget = ARM_REST + 1.5f
+                val baked = async { bakeLabel(context, newCover, labelPx, labelSide(next)) }   // se prepara mientras el brazo vuelve
                 delay(700)
                 discAway.animateTo(1f, tween(480, easing = FastOutSlowInEasing))
                 label = baked.await()
@@ -217,8 +238,19 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean) {
                 Box(
                     Modifier.fillMaxSize().graphicsLayer {
                         val a = discAway.value
-                        translationX = -60f * k * a; translationY = -90f * k * a
-                        scaleX = 1f + .06f * a; scaleY = scaleX; alpha = 1f - a
+                        val f = discFlip.value
+                        val up = sin(PI.toFloat() * f)                       // al darse vuelta se levanta
+                        translationX = -60f * k * a; translationY = -90f * k * a - 40f * k * up
+                        scaleX = 1f + .06f * a + .05f * up; scaleY = scaleX; alpha = 1f - a
+                        // vuelta: 0→90° y después -90→0° (así la etiqueta nueva no queda espejada)
+                        val flipY = if (f < .5f) 180f * f else 180f * f - 180f
+                        // alabeo: el disco se ondula apenas con cada vuelta
+                        val w = if (Touches.WARP) (motion.speed / 200f) else 0f
+                        val ang = motion.recordAngle * PI.toFloat() / 180f
+                        rotationX = .55f * w * sin(ang)
+                        rotationY = flipY + .35f * w * cos(ang)
+                        transformOrigin = TransformOrigin(PlatterCenter.x / DECK_W, PlatterCenter.y / DECK_H)
+                        cameraDistance = 30f * density
                     },
                 ) {
                     // solo el cuadrado del disco: una imagen del tamaño del gabinete sería casi toda transparente
@@ -239,13 +271,16 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean) {
                     drawArm(
                         angle = motion.armAngle + if (onRecord) sin(a) * .07f else 0f,
                         lift = motion.lift,
-                        bob = if (onRecord) sin(a * 2f) * .6f else 0f,
+                        bob = if (!onRecord) 0f else if (Touches.WARP) sin(a) * 1.4f else sin(a * 2f) * .6f,
                         shadows = shadows,
                     )
                 }
                 Engrave("33⅓ rpm", s, 20f, Palette.Cream.copy(alpha = .5f), Modifier.offset(s.dp(150f), s.dp(764f)))
             }
         }
+
+        // Polvo en el aire y haz de luz (encima del tocadiscos, debajo del texto)
+        DustAndLight({ motion.time }, k)
 
         // Columna de lectura
         Column(
