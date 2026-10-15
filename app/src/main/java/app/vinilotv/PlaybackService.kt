@@ -25,6 +25,7 @@ class PlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         Settings.init(this)
+        Crate.init(this)
         val http = DefaultHttpDataSource.Factory()
             .setUserAgent(YouTube.USER_AGENT)
             .setAllowCrossProtocolRedirects(true)

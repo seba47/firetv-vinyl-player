@@ -16,6 +16,8 @@ import java.net.Inet4Address
  *   GET  /api/state         qué suena y estaciones recientes
  *   GET  /api/search?q=&kind=song|album|playlist
  *   POST /api/play          {kind,title,subtitle,url,thumb}: arranca esa estación
+ *   POST /api/crate/add     {kind,title,subtitle,url,thumb}: lo guarda en la caja de discos
+ *   POST /api/crate/remove  {url}      POST /api/crate/move {url, delta}
  *   POST /api/next, /api/toggle
  *   POST /api/settings      {wall: LIVING|ESTUFA, plaster: 40..95, edgeTop, edgeBottom}: fondo de la tele
  * Cualquiera en el mismo WiFi puede usarla (igual que el control remoto).
@@ -51,6 +53,18 @@ class WebServer private constructor(private val context: Context, port: Int) : N
                 main.post { Settings.update(wall, int("plaster"), int("edgeTop"), int("edgeBottom")) }
                 json(JSONObject().put("ok", true))
             }
+            path == "/api/crate/add" && session.method == Method.POST -> {
+                val seed = Seed.fromJson(JSONObject(body(session)))
+                val ok = Crate.add(seed)
+                if (ok) main.post { Radio.toast("Guardado en la caja: ${seed.title}") }
+                json(JSONObject().put("ok", ok).put("full", !ok))
+            }
+            path == "/api/crate/remove" && session.method == Method.POST -> {
+                Crate.remove(JSONObject(body(session)).getString("url")); json(JSONObject().put("ok", true))
+            }
+            path == "/api/crate/move" && session.method == Method.POST -> {
+                val o = JSONObject(body(session)); Crate.move(o.getString("url"), o.getInt("delta")); json(JSONObject().put("ok", true))
+            }
             path == "/api/next" && session.method == Method.POST -> { main.post { Radio.next() }; json(JSONObject().put("ok", true)) }
             path == "/api/toggle" && session.method == Method.POST -> { main.post { Radio.togglePause() }; json(JSONObject().put("ok", true)) }
             else -> newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "No existe")
@@ -73,6 +87,8 @@ class WebServer private constructor(private val context: Context, port: Int) : N
             .put("loading", s.loading)
             .put("recent", JSONArray(s.recent.map { it.toJson() }))
             .put("settings", Settings.state.value.toJson())
+            .put("crate", JSONArray(Crate.items.value.map { it.toJson() }))
+            .put("crateMax", Crate.MAX)
     }
 
     private fun SearchResult.toJson() = JSONObject().put("kind", kind.name).put("title", title).put("subtitle", subtitle)

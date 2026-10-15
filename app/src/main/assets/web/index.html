@@ -81,6 +81,19 @@
   #sheet p b { color: var(--cream); font-weight: 500; }
   .primary { height: 54px; border-radius: 14px; background: var(--brass); color: var(--brass-ink); font-weight: 500; font-size: 17px; }
   .secondary { height: 46px; border-radius: 14px; color: var(--cream-2); }
+  .save { height: 50px; border-radius: 14px; border: 1px solid rgb(194 146 79 / .55); color: var(--brass); font-weight: 500; font-size: 16px; }
+  .save[disabled] { opacity: .5; }
+  #crate { display: grid; gap: 4px; }
+  #crate-list { list-style: none; display: grid; }
+  #crate-list li { display: grid; grid-template-columns: 48px 1fr auto; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  #crate-list .cover { width: 48px; }
+  #crate-list .txt { min-width: 0; }
+  #crate-list .t { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #crate-list .s { font-size: 13px; color: var(--cream-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #crate-list .acts { display: flex; gap: 2px; }
+  #crate-list .acts button { width: 38px; height: 38px; border-radius: 50%; color: var(--cream-2); font-size: 17px; }
+  #crate-list .acts button:active { background: var(--line); }
+  #crate-list .acts button[disabled] { opacity: .25; }
 
   #look { display: grid; gap: 12px; padding: 16px; border-radius: 14px; background: var(--panel); margin-top: 8px; }
   #look .row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
@@ -127,6 +140,12 @@
   <ul class="list" id="results"></ul>
   <div class="note" id="note" hidden></div>
 
+  <section id="crate" aria-labelledby="crate-title">
+    <h2 class="section engrave" id="crate-title">La caja de discos</h2>
+    <p class="note" id="crate-empty" style="text-align:left;padding:4px 0 8px">Guardá discos con “Guardar en la caja” y elegilos después desde la tele con ↓ en el control, sin el celular.</p>
+    <ul id="crate-list"></ul>
+  </section>
+
   <section id="look" aria-labelledby="look-title">
     <h2 class="section engrave" id="look-title">Fondo de la tele</h2>
     <div class="row">
@@ -155,6 +174,7 @@
   </div>
   <p id="sheet-text"></p>
   <button class="primary" id="btn-play">Poner en la tele</button>
+  <button class="save" id="btn-save">Guardar en la caja</button>
   <button class="secondary" id="btn-cancel">Cancelar</button>
 </div>
 <div id="toast" role="status"></div>
@@ -212,6 +232,9 @@
       : item.kind === "ALBUM" ? `Suena <b>el disco entero</b>, en orden${item.count > 1 ? ` (${item.count} temas)` : ""}`
       : `Suena <b>la playlist</b>${item.count > 1 ? ` (${item.count} temas)` : ""}`;
     $("sheet-text").innerHTML = `${what} y después la tele <b>sigue enganchando temas parecidos al azar</b>, sin parar.`;
+    const saved = inCrate(item.url);
+    $("btn-save").disabled = saved;
+    $("btn-save").textContent = saved ? "Ya está en la caja" : "Guardar en la caja";
     document.body.classList.add("open");
   }
   const closeSheet = () => document.body.classList.remove("open");
@@ -240,6 +263,33 @@
     } catch { toast("No llego a la tele"); }
   });
   $("btn-pause").addEventListener("click", () => post("/api/toggle"));
+
+  // Caja de discos
+  let crate = [], crateMax = 30;
+  const inCrate = url => crate.some(c => c.url === url);
+  const postJson = (path, body) => fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  function showCrate() {
+    $("crate-empty").hidden = crate.length > 0;
+    $("crate-list").innerHTML = crate.map((c, i) => `<li>${cover(c.thumb)}<span class="txt"><div class="t">${esc(c.title)}</div><div class="s">${esc(KIND[c.kind] + " · " + c.subtitle)}</div></span>
+      <span class="acts"><button aria-label="Subir" data-act="up" data-i="${i}" ${i === 0 ? "disabled" : ""}>↑</button><button aria-label="Bajar" data-act="down" data-i="${i}" ${i === crate.length - 1 ? "disabled" : ""}>↓</button><button aria-label="Sacar de la caja" data-act="del" data-i="${i}">✕</button></span></li>`).join("");
+    $("crate-title").textContent = crate.length ? `La caja de discos · ${crate.length}/${crateMax}` : "La caja de discos";
+  }
+  $("crate-list").addEventListener("click", async e => {
+    const b = e.target.closest("button[data-act]"); if (!b) return;
+    const c = crate[+b.dataset.i];
+    if (b.dataset.act === "del") { crate = crate.filter(x => x !== c); showCrate(); await postJson("/api/crate/remove", { url: c.url }); }
+    else { const delta = b.dataset.act === "up" ? -1 : 1; const i = +b.dataset.i; const j = i + delta;
+      [crate[i], crate[j]] = [crate[j], crate[i]]; showCrate(); await postJson("/api/crate/move", { url: c.url, delta }); }
+  });
+  $("btn-save").addEventListener("click", async () => {
+    const seed = { kind: picked.kind, title: picked.title, subtitle: picked.subtitle, url: picked.url, thumb: picked.thumb };
+    try {
+      const r = await (await postJson("/api/crate/add", seed)).json();
+      if (r.full) { toast(`La caja está llena (${crateMax}). Sacá alguno abajo.`); return; }
+      crate = [seed, ...crate.filter(c => c.url !== seed.url)]; showCrate();
+      closeSheet(); toast(`Guardado en la caja: ${picked.title}`);
+    } catch { toast("No llego a la tele"); }
+  });
 
   // Fondo de la tele
   let look = { wall: "LIVING", plaster: 78, edgeTop: 233, edgeBottom: 420 }, lookDirty = 0;
@@ -279,6 +329,7 @@
       $("btn-pause").setAttribute("aria-label", s.playing ? "Pausa" : "Seguir");
       recent = (s.recent || []).map(r => ({ ...r, count: -1 }));
       if (s.settings && Date.now() - lookDirty > 4000) { look = s.settings; showLook(); }
+      if (s.crate) { crate = s.crate; crateMax = s.crateMax || 30; showCrate(); }
       if (!$("q").value.trim()) showRecent();
     } catch {
       $("dot").classList.add("off"); $("link-text").textContent = "Sin conexión con la tele";

@@ -90,12 +90,12 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /** Unidades de diseño: píxeles de una tele a 1080p, escalados a la pantalla real. */
-private class Stage(val k: Float, private val density: Density) {
+internal class Stage(val k: Float, private val density: Density) {
     fun dp(px: Float): Dp = with(density) { (px * k).toDp() }
     fun sp(px: Float): TextUnit = with(density) { (px * k).toSp() }
 }
 
-private fun Modifier.place(s: Stage, x: Float, y: Float, w: Float, h: Float) =
+internal fun Modifier.place(s: Stage, x: Float, y: Float, w: Float, h: Float) =
     offset(s.dp(x), s.dp(y)).size(s.dp(w), s.dp(h))
 
 /** Estado de la animación del tocadiscos (cambia en cada cuadro). */
@@ -145,8 +145,11 @@ private fun progressAngle(item: QueueItem?, positionMs: Long, durationMs: Long):
 private fun continuesAlbum(prev: QueueItem?, next: QueueItem?) =
     prev != null && next != null && prev.albumIndex >= 0 && next.albumIndex == prev.albumIndex + 1
 
+/** Estado de la caja de discos en pantalla (lo maneja MainActivity con el control). */
+data class CrateUi(val open: Boolean = false, val items: List<app.vinilotv.CrateItem> = emptyList(), val index: Int = 0, val picking: Boolean = false)
+
 @Composable
-fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean, look: Appearance = Appearance()) {
+fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean, look: Appearance = Appearance(), crate: CrateUi = CrateUi()) {
     BoxWithConstraints(Modifier.fillMaxSize().background(Palette.Room)) {
         val k = constraints.maxWidth / 1920f
         val s = Stage(k, LocalDensity.current)
@@ -220,6 +223,8 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean, look: App
         val estufaT by animateFloatAsState(if (estufa) 1f else 0f, tween(1200, easing = FastOutSlowInEasing), label = "estufa")
         // composición centrada: en el salvapantallas o con el fondo estufa
         val centerT = maxOf(idleT, estufaT)
+        // con la caja abierta el tocadiscos sube y se achica
+        val crateT by animateFloatAsState(if (crate.open) 1f else 0f, tween(800, easing = FastOutSlowInEasing), label = "cajaAbierta")
         val pickerT by animateFloatAsState(if (pickerOpen) 1f else 0f, tween(600, easing = FastOutSlowInEasing), label = "picker")
 
         // Fondo con luz ambiente (la tapa desenfocada): una sola imagen chica estirada.
@@ -229,9 +234,12 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean, look: App
         Box(
             Modifier.place(s, 80f, 120f, DECK_W, DECK_H).graphicsLayer {
                 // centrado (salvapantallas) o colgado en la pared (estufa: de frente, un poco más chico)
-                translationX = 380f * k * centerT
-                translationY = (-78f + 42f * estufaT) * k * centerT
-                scaleX = 1f - (.08f + .12f * estufaT) * centerT; scaleY = scaleX
+                val tx = 380f * centerT
+                val ty = (-78f + 42f * estufaT) * centerT
+                val sc = 1f - (.08f + .12f * estufaT) * centerT
+                translationX = (tx + (380f - tx) * crateT) * k
+                translationY = (ty + (-262f - ty) * crateT) * k
+                scaleX = sc + (.5f - sc) * crateT; scaleY = scaleX
             },
         ) {
             Box(
@@ -293,7 +301,7 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean, look: App
 
         // Columna de lectura
         Column(
-            Modifier.place(s, 1160f, 168f, 680f, 840f).graphicsLayer { alpha = (1f - centerT) * (1f - pickerT) },
+            Modifier.place(s, 1160f, 168f, 680f, 840f).graphicsLayer { alpha = (1f - centerT) * (1f - pickerT) * (1f - crateT) },
         ) {
             AnimatedContent(
                 targetState = state.current,
@@ -319,10 +327,10 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean, look: App
         // Ayuda del control
         Row(
             Modifier.align(Alignment.BottomEnd).padding(end = s.dp(80f), bottom = s.dp(50f))
-                .graphicsLayer { alpha = 1f - centerT },
+                .graphicsLayer { alpha = (1f - centerT) * (1f - crateT) },
             horizontalArrangement = Arrangement.spacedBy(s.dp(34f)),
         ) {
-            listOf("→" to "siguiente", "OK" to "pausa", "↑↓" to "estación", "≡" to "elegir música").forEach { (key, what) ->
+            listOf("→" to "siguiente", "OK" to "pausa", "↓" to "tus discos", "≡" to "elegir música").forEach { (key, what) ->
                 Row {
                     BasicText(key, style = body(s, 18f, Palette.Cream.copy(alpha = .5f), FontWeight.Medium))
                     Spacer(Modifier.width(s.dp(8f)))
@@ -334,7 +342,7 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean, look: App
         // Composición centrada (salvapantallas o fondo estufa): epígrafe abajo, en tinta sobre el yeso
         Column(
             Modifier.align(Alignment.BottomCenter).padding(bottom = s.dp(if (estufa) 40f else 64f))
-                .graphicsLayer { alpha = centerT * (1f - pickerT) },
+                .graphicsLayer { alpha = centerT * (1f - pickerT) * (1f - crateT) },
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             val cur = state.current
@@ -349,6 +357,16 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean, look: App
             Spacer(Modifier.height(s.dp(6f)))
             BasicText(cur?.track?.artist.orEmpty(), style = body(s, if (estufa) 22f else 18f, lerp(Palette.Cream3, Palette.Ink2, estufaT)))
         }
+
+        // con el fondo estufa, una ayuda chiquita para abrir la caja
+        BasicText(
+            "↓  tus discos",
+            Modifier.align(Alignment.BottomEnd).padding(end = s.dp(80f), bottom = s.dp(50f))
+                .graphicsLayer { alpha = estufaT * (1f - idleT) * (1f - crateT) * (1f - pickerT) },
+            style = body(s, 18f, Palette.Ink2),
+        )
+
+        CrateView(crate.open, crate.items, crate.index, crate.picking, estufaT, s)
 
         Picker(state, s, pickerT)
         Toast(state.toast, s)

@@ -40,6 +40,13 @@ object Fonts {
         Font(R.font.familjen_grotesk, FontWeight.Medium, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
     )
 
+    /** Escrito a mano con fibrón: separadores de la caja de discos. */
+    @OptIn(ExperimentalTextApi::class)
+    val Hand = FontFamily(
+        Font(R.font.caveat, FontWeight.Medium, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
+        Font(R.font.caveat, FontWeight.Bold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
+    )
+
     /** Etiquetas en mayúsculas, como grabado de equipo hi-fi. */
     @OptIn(ExperimentalTextApi::class)
     val Engrave = FontFamily(

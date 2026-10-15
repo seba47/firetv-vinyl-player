@@ -11,7 +11,10 @@ Sin servidor propio. Uso personal, sideload.
   WiFi) → buscá un tema, disco o playlist → "Poner en la tele".
 - Suena la semilla (un disco va en orden, "Lado A · tema 3") y cuando termina **sigue enganchando
   temas parecidos al azar**, sin repetir. Nunca se corta.
-- Control remoto: **→** siguiente · **OK** pausa · **↑↓** estaciones recientes · **≡** elegir música ·
+- **La caja de discos:** desde el celular, "Guardar en la caja" en cualquier tema, disco o playlist
+  (hasta 30; se ordenan y sacan en la sección "La caja de discos"). Después se elige desde la tele sin
+  celular: **↓** abre la caja, **← →** revolver, **OK** lo pone. Trae "Lo último que sonó" y una sorpresa.
+- Control remoto: **→** siguiente · **OK** pausa · **↓** la caja de discos · **↑** estación anterior · **≡** elegir música ·
   **Atrás** sale (la música sigue sonando de fondo; play/pausa del control y "Alexa, pausa" andan).
 - A los 3 minutos sin tocar nada queda solo el tocadiscos (salvapantallas propio).
 - **Fondo de la tele** (desde la página del celular): *Living* (oscuro, con la luz de la tapa; por
