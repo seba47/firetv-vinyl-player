@@ -17,7 +17,7 @@ import java.net.Inet4Address
  *   GET  /api/search?q=&kind=song|album|playlist
  *   POST /api/play          {kind,title,subtitle,url,thumb}: arranca esa estación
  *   POST /api/next, /api/toggle
- *   POST /api/settings      {wall: LIVING|ESTUFA, plaster: 40..95}: fondo de la tele
+ *   POST /api/settings      {wall: LIVING|ESTUFA, plaster: 40..95, edgeTop, edgeBottom}: fondo de la tele
  * Cualquiera en el mismo WiFi puede usarla (igual que el control remoto).
  */
 class WebServer private constructor(private val context: Context, port: Int) : NanoHTTPD(port) {
@@ -47,8 +47,8 @@ class WebServer private constructor(private val context: Context, port: Int) : N
             path == "/api/settings" && session.method == Method.POST -> {
                 val o = JSONObject(body(session))
                 val wall = o.optString("wall").takeIf { it.isNotEmpty() }?.let { runCatching { Wall.valueOf(it) }.getOrNull() }
-                val plaster = if (o.has("plaster")) o.getInt("plaster") else null
-                main.post { Settings.update(wall, plaster) }
+                fun int(k: String) = if (o.has(k)) o.getInt(k) else null
+                main.post { Settings.update(wall, int("plaster"), int("edgeTop"), int("edgeBottom")) }
                 json(JSONObject().put("ok", true))
             }
             path == "/api/next" && session.method == Method.POST -> { main.post { Radio.next() }; json(JSONObject().put("ok", true)) }

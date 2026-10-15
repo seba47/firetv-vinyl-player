@@ -97,11 +97,9 @@ private fun drawSideMark(canvas: Canvas, px: Int, side: Char) {
     canvas.drawText(side.toString(), cx, cy - (text.ascent() + text.descent()) / 2f, text)
 }
 
-// Aristas de la estufa en la pantalla (fracción del ancho): ajustarlas si la tele cambia de lugar.
-const val ESTUFA_TOP_L = .266f
-const val ESTUFA_TOP_R = .731f
-const val ESTUFA_BOT_L = -.056f
-const val ESTUFA_BOT_R = 1.056f
+// Centro de la columna de la estufa en la pantalla (fracción del ancho), medido en una foto de frente.
+// El ancho de la cara arriba y abajo se ajusta desde el celular (Settings.edgeTop/edgeBottom).
+const val ESTUFA_CENTER = .4985f
 
 /**
  * Pared de yeso de la estufa, pintada una vez a media resolución (se estira a la pantalla):
@@ -109,7 +107,7 @@ const val ESTUFA_BOT_R = 1.056f
  * columna: ~28 %–70 % arriba, abriéndose hacia abajo) y la sombra del tocadiscos sobre la pared.
  * [level] = brillo del yeso en %.
  */
-suspend fun bakePlaster(level: Int): ImageBitmap = withContext(Dispatchers.Default) {
+suspend fun bakePlaster(level: Int, edgeTop: Int, edgeBottom: Int): ImageBitmap = withContext(Dispatchers.Default) {
     val w = 960; val h = 540
     val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
     val c = Canvas(out)
@@ -138,7 +136,8 @@ suspend fun bakePlaster(level: Int): ImageBitmap = withContext(Dispatchers.Defau
     // caras de la estufa: la derecha en sombra, la izquierda apenas iluminada, aristas suaves
     // Vértices medidos sobre una foto de frente de la tele en la estufa (fracción del ancho de pantalla):
     // arriba coinciden con las aristas de la columna; abajo siguen la pendiente del cono (fuera de cuadro).
-    val topL = w * ESTUFA_TOP_L; val topR = w * ESTUFA_TOP_R; val botL = w * ESTUFA_BOT_L; val botR = w * ESTUFA_BOT_R
+    val topL = w * (ESTUFA_CENTER - edgeTop / 1000f); val topR = w * (ESTUFA_CENTER + edgeTop / 1000f)
+    val botL = w * (ESTUFA_CENTER - edgeBottom / 1000f); val botR = w * (ESTUFA_CENTER + edgeBottom / 1000f)
     val right = android.graphics.Path().apply { moveTo(topR, 0f); lineTo(w.toFloat(), 0f); lineTo(w.toFloat(), h.toFloat()); lineTo(botR, h.toFloat()); close() }
     val left = android.graphics.Path().apply { moveTo(0f, 0f); lineTo(topL, 0f); lineTo(botL, h.toFloat()); lineTo(0f, h.toFloat()); close() }
     c.drawPath(right, Paint(Paint.ANTI_ALIAS_FLAG).apply {

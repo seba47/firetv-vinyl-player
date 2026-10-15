@@ -35,7 +35,7 @@
 <body>
   <div id="photo">
     <img src="local/pared.jpg" alt="La tele colgada en la estufa">
-    <div id="screen"><iframe id="tv" src="estufa.html#embudo" title="Tele"></iframe></div>
+    <div id="screen"><iframe id="tv" src="estufa.html#colgado" title="Tele"></iframe></div>
   </div>
   <aside>
     <h1>Fondo de la tele</h1>
@@ -44,6 +44,7 @@
       <button data-mode="embudo">Embudo: centro oscuro, costados de yeso</button>
       <button data-mode="yeso">Todo yeso</button>
       <button data-mode="columna">Columna de yeso al centro</button>
+      <button data-mode="colgado">Todo yeso, tocadiscos colgado</button>
     </div>
     <label for="lum">Brillo del yeso <span id="lumv"></span>
       <input id="lum" type="range" min="45" max="95" value="78">
@@ -52,7 +53,7 @@
   </aside>
 <script>
   // Rectángulo de la pantalla dentro de la foto, en % (medido sobre la foto de frente).
-  const SCREEN = { left: 17.4, top: 39.9, width: 70.5, height: 29.6 };
+  const SCREEN = { left: 8.13, top: 29.9, width: 88.3, height: 37.35 };
   const photo = document.getElementById("photo"), screen = document.getElementById("screen"), tv = document.getElementById("tv");
   function fit() {
     Object.assign(screen.style, { left: SCREEN.left + "%", top: SCREEN.top + "%", width: SCREEN.width + "%", height: SCREEN.height + "%" });
@@ -61,7 +62,7 @@
   }
   addEventListener("resize", fit); fit();
 
-  let mode = "embudo";
+  let mode = "colgado";
   const lum = document.getElementById("lum");
   function apply() {
     document.querySelectorAll("#opts button").forEach(b => b.setAttribute("aria-pressed", b.dataset.mode === mode));

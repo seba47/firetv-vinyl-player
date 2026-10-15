@@ -133,9 +133,17 @@
       <button id="wall-living" data-wall="LIVING" aria-pressed="true"><span class="sw living"></span>Living</button>
       <button id="wall-estufa" data-wall="ESTUFA" aria-pressed="false"><span class="sw estufa"></span>Estufa de yeso</button>
     </div>
-    <label for="plaster" id="plaster-row" hidden>Brillo del yeso <span id="plaster-v"></span>
-      <input id="plaster" type="range" min="40" max="95" step="1" value="78">
-    </label>
+    <div id="estufa-opts" hidden style="display:grid;gap:12px">
+      <label for="plaster">Brillo del yeso <span id="plaster-v"></span>
+        <input id="plaster" type="range" min="40" max="95" step="1" value="78">
+      </label>
+      <label for="edgeTop">Aristas arriba (ancho de la columna) <span id="edgeTop-v"></span>
+        <input id="edgeTop" type="range" min="100" max="500" step="2" value="233">
+      </label>
+      <label for="edgeBottom">Aristas abajo (cuánto se abre) <span id="edgeBottom-v"></span>
+        <input id="edgeBottom" type="range" min="150" max="800" step="2" value="420">
+      </label>
+    </div>
   </section>
 </div>
 
@@ -234,11 +242,13 @@
   $("btn-pause").addEventListener("click", () => post("/api/toggle"));
 
   // Fondo de la tele
-  let look = { wall: "LIVING", plaster: 78 }, lookDirty = 0;
+  let look = { wall: "LIVING", plaster: 78, edgeTop: 233, edgeBottom: 420 }, lookDirty = 0;
+  const SLIDERS = { plaster: v => v + "%", edgeTop: v => (v / 10).toFixed(1) + "%", edgeBottom: v => (v / 10).toFixed(1) + "%" };
   function showLook() {
     document.querySelectorAll("#look .row button").forEach(b => b.setAttribute("aria-pressed", b.dataset.wall === look.wall));
-    $("plaster-row").hidden = look.wall !== "ESTUFA";
-    $("plaster").value = look.plaster; $("plaster-v").textContent = look.plaster + "%";
+    $("estufa-opts").hidden = look.wall !== "ESTUFA";
+    $("estufa-opts").style.display = look.wall === "ESTUFA" ? "grid" : "none";
+    Object.entries(SLIDERS).forEach(([k, fmt]) => { $(k).value = look[k]; $(k + "-v").textContent = fmt(look[k]); });
   }
   async function sendLook(change) {
     look = { ...look, ...change }; lookDirty = Date.now(); showLook();
@@ -246,11 +256,11 @@
     catch { toast("No llego a la tele"); }
   }
   document.querySelectorAll("#look .row button").forEach(b => b.addEventListener("click", () => sendLook({ wall: b.dataset.wall })));
-  let plasterTimer;
-  $("plaster").addEventListener("input", e => {
-    look.plaster = +e.target.value; $("plaster-v").textContent = look.plaster + "%"; lookDirty = Date.now();
-    clearTimeout(plasterTimer); plasterTimer = setTimeout(() => sendLook({ plaster: look.plaster }), 250);
-  });
+  let sliderTimer;
+  Object.entries(SLIDERS).forEach(([k, fmt]) => $(k).addEventListener("input", e => {
+    look[k] = +e.target.value; $(k + "-v").textContent = fmt(look[k]); lookDirty = Date.now();
+    clearTimeout(sliderTimer); sliderTimer = setTimeout(() => sendLook({ [k]: look[k] }), 250);
+  }));
   $("btn-next").addEventListener("click", () => post("/api/next"));
 
   async function refresh() {

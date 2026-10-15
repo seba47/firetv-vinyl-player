@@ -223,7 +223,7 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean, look: App
         val pickerT by animateFloatAsState(if (pickerOpen) 1f else 0f, tween(600, easing = FastOutSlowInEasing), label = "picker")
 
         // Fondo con luz ambiente (la tapa desenfocada): una sola imagen chica estirada.
-        Backdrop(state.current?.track?.thumbnailUrl, look.plaster, { estufaT })
+        Backdrop(state.current?.track?.thumbnailUrl, look, { estufaT })
 
         // Tocadiscos
         Box(
@@ -354,7 +354,7 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean, look: App
 }
 
 @Composable
-private fun Backdrop(url: String?, plasterLevel: Int, estufaT: () -> Float) {
+private fun Backdrop(url: String?, look: Appearance, estufaT: () -> Float) {
     val context = LocalContext.current
     var shown by remember { mutableStateOf<ImageBitmap?>(null) }
     var previous by remember { mutableStateOf<ImageBitmap?>(null) }
@@ -366,7 +366,7 @@ private fun Backdrop(url: String?, plasterLevel: Int, estufaT: () -> Float) {
         fade.snapTo(0f); fade.animateTo(1f, tween(1800))
         previous = null
     }
-    LaunchedEffect(plasterLevel) { plaster = bakePlaster(plasterLevel) }
+    LaunchedEffect(look.plaster, look.edgeTop, look.edgeBottom) { plaster = bakePlaster(look.plaster, look.edgeTop, look.edgeBottom) }
     Canvas(Modifier.fillMaxSize()) {
         val dst = IntSize(size.width.toInt(), size.height.toInt())
         val e = estufaT()
