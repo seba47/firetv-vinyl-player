@@ -97,6 +97,12 @@ private fun drawSideMark(canvas: Canvas, px: Int, side: Char) {
     canvas.drawText(side.toString(), cx, cy - (text.ascent() + text.descent()) / 2f, text)
 }
 
+// Aristas de la estufa en la pantalla (fracción del ancho): ajustarlas si la tele cambia de lugar.
+const val ESTUFA_TOP_L = .266f
+const val ESTUFA_TOP_R = .731f
+const val ESTUFA_BOT_L = -.056f
+const val ESTUFA_BOT_R = 1.056f
+
 /**
  * Pared de yeso de la estufa, pintada una vez a media resolución (se estira a la pantalla):
  * revoque con manchas y grano, luz de arriba, las caras de la estufa en relieve (siguiendo la
@@ -130,7 +136,9 @@ suspend fun bakePlaster(level: Int): ImageBitmap = withContext(Dispatchers.Defau
         shader = RadialGradient(w * .3f, h * .2f, w * .5f, 0x1AFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
     })
     // caras de la estufa: la derecha en sombra, la izquierda apenas iluminada, aristas suaves
-    val topL = w * .282f; val topR = w * .699f; val botL = -w * .04f; val botR = w * 1.04f
+    // Vértices medidos sobre una foto de frente de la tele en la estufa (fracción del ancho de pantalla):
+    // arriba coinciden con las aristas de la columna; abajo siguen la pendiente del cono (fuera de cuadro).
+    val topL = w * ESTUFA_TOP_L; val topR = w * ESTUFA_TOP_R; val botL = w * ESTUFA_BOT_L; val botR = w * ESTUFA_BOT_R
     val right = android.graphics.Path().apply { moveTo(topR, 0f); lineTo(w.toFloat(), 0f); lineTo(w.toFloat(), h.toFloat()); lineTo(botR, h.toFloat()); close() }
     val left = android.graphics.Path().apply { moveTo(0f, 0f); lineTo(topL, 0f); lineTo(botL, h.toFloat()); lineTo(0f, h.toFloat()); close() }
     c.drawPath(right, Paint(Paint.ANTI_ALIAS_FLAG).apply {
