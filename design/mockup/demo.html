@@ -27,7 +27,9 @@
   <figure><div class="phone"><iframe id="phone" src="celular.html" title="Celular"></iframe></div>
     <figcaption>Celular (abierto desde el QR)</figcaption></figure>
 <script>
-  const tv = document.getElementById("tv").contentWindow;
+  // demo.html?v=vistoso usa la versión vistosa de la tele
+  if (new URLSearchParams(location.search).get("v") === "vistoso") document.getElementById("tv").src = "vistoso.html";
+  const tv = document.getElementById("tv").contentWindow;  // contentWindow sobrevive al cambio de src
   const phone = document.getElementById("phone").contentWindow;
   addEventListener("message", e => {
     if (e.source === phone) tv.postMessage(e.data, "*");

@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vinilo TV · vistoso</title>
+<!--
+  Mockup de la pantalla de la tele (fase 2). Escenario fijo de 1920x1080 (lo que dibuja el Fire TV
+  a 1080p) escalado a la ventana. Teclado = control remoto:
+    →  siguiente      Enter/Espacio  pausa      ↑ / ↓  estaciones recientes      M  elegir música (QR)
+  Versión "vistosa": luz ambiente con la tapa, cambio de disco animado, púa que aterriza y modo
+  salvapantallas tras 20 s sin tocar nada (en la tele real serían unos minutos).
+  También recibe órdenes del celular por postMessage (ver celular.html y demo.html).
+  Las tapas son miniaturas de YouTube Music (tapa cuadrada centrada en un 16:9).
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Familjen+Grotesk:wght@400;500&family=Big+Shoulders+Text:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  /* Layout: tocadiscos en perspectiva a la izquierda (lo único audaz); a la derecha, columna de
+     lectura desde el sillón. Un solo mundo visual oscuro y cálido: es una tele en un living. */
+  :root {
+    color-scheme: dark;
+    --room: #1b1613;          /* grafito cálido del fondo */
+    --walnut: #5b3b25;        /* nogal del gabinete */
+    --walnut-deep: #2e1c10;
+    --cream: #eee3cf;         /* texto */
+    --brass: #c2924f;         /* latón: estación, progreso, detalles */
+    --vinyl: #111010;
+    --cream-2: rgb(238 227 207 / 0.64);
+    --cream-3: rgb(238 227 207 / 0.36);
+    --cream-4: rgb(238 227 207 / 0.14);
+    --f-display: "Young Serif", "Iowan Old Style", Georgia, serif;
+    --f-body: "Familjen Grotesk", "Helvetica Neue", Arial, sans-serif;
+    --f-engrave: "Big Shoulders Text", "Arial Narrow", "Helvetica Neue", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #000; overflow: hidden; }
+  body { font-family: var(--f-body); color: var(--cream); }
+
+  #stage {
+    position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; transform-origin: 0 0;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse 60% 75% at 30% 58%, rgb(150 95 50 / 0.16), transparent 70%),
+      radial-gradient(ellipse at center, transparent 50%, rgb(0 0 0 / 0.6) 100%),
+      var(--room);
+  }
+  /* grano de película muy suave sobre todo */
+  #stage::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .05; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* Luz ambiente: la tapa que suena, enorme y desenfocada, tiñe el living. */
+  #ambient { position: absolute; inset: -12%; pointer-events: none; }
+  #ambient i { position: absolute; inset: 0; background: center / cover no-repeat; filter: blur(120px) saturate(1.35);
+    opacity: 0; transform: scale(1.15); transition: opacity 1800ms ease; }
+  #ambient i.on { opacity: .42; }
+  #ambient::after { content: ""; position: absolute; inset: 0;
+    background: radial-gradient(ellipse 70% 80% at 32% 55%, rgb(27 22 19 / .15), rgb(27 22 19 / .78) 80%); }
+
+  /* ---------- Tocadiscos ---------- */
+  #deck { position: absolute; left: 80px; top: 120px; width: 1000px; height: 860px; perspective: 1800px; perspective-origin: 50% -20%;
+    transition: transform 2600ms cubic-bezier(.4,.1,.2,1); }
+  #plinth {
+    position: absolute; inset: 0; transform: rotateX(24deg); transform-origin: 50% 100%; border-radius: 20px;
+    background:
+      repeating-linear-gradient(92deg, transparent 0 7px, rgb(0 0 0 / .07) 7px 9px, rgb(255 220 180 / .03) 9px 13px),
+      repeating-linear-gradient(88deg, rgb(0 0 0 / .05) 0 31px, rgb(255 230 200 / .035) 31px 47px),
+      linear-gradient(160deg, var(--walnut), #452b1a 55%, var(--walnut-deep));
+    box-shadow: inset 0 2px 0 rgb(255 220 180 / .12), inset 0 -14px 0 #22150c, 0 60px 80px -20px rgb(0 0 0 / .75), 0 20px 30px rgb(0 0 0 / .4);
+  }
+  #platter {
+    position: absolute; left: 60px; top: 70px; width: 720px; height: 720px; border-radius: 50%;
+    background: radial-gradient(circle, #3b3734 0 60%, #6d6862 66%, #2a2725 69%, #8c867e 70%, #3a3633 71.5%);
+    box-shadow: 0 18px 30px rgb(0 0 0 / .55), 0 0 0 2px rgb(0 0 0 / .5);
+  }
+  #disc { position: absolute; inset: 0; transition: transform 480ms cubic-bezier(.5,0,.3,1), opacity 480ms ease; }
+  #disc.away { transform: translate(-60px, -90px) scale(1.06); opacity: 0; }
+  .playing #platter { animation: wobble 1.8s linear infinite; }
+  @keyframes wobble { 0%, 100% { translate: 0 0; } 25% { translate: .6px -.4px; } 50% { translate: 0 .7px; } 75% { translate: -.6px -.3px; } }
+  #record {
+    position: absolute; inset: 14px; border-radius: 50%; will-change: transform;
+    background:
+      repeating-radial-gradient(circle, rgb(255 255 255 / .025) 0 1px, transparent 1px 3px),
+      radial-gradient(circle, #1a1717 0 34%, var(--vinyl) 35%, #171414 62%, #0e0c0c 63%, var(--vinyl) 64% 96%, #1b1818 97%, #0a0909 100%);
+    box-shadow: 0 0 0 1px rgb(0 0 0 / .8);
+  }
+  #label {
+    position: absolute; left: 50%; top: 50%; width: 33%; height: 33%; transform: translate(-50%, -50%); border-radius: 50%;
+    background-color: #3a2a1d; background-repeat: no-repeat; background-size: auto 100%; background-position: center;
+    box-shadow: 0 0 0 3px rgb(0 0 0 / .6), inset 0 0 24px rgb(0 0 0 / .35);
+  }
+  #spindle { position: absolute; left: 50%; top: 50%; width: 16px; height: 16px; transform: translate(-50%, -50%); border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #f2e6cf, #9a8f80 60%, #4d463e); box-shadow: 0 1px 2px rgb(0 0 0 / .8); }
+  #sheen {
+    position: absolute; inset: 14px; border-radius: 50%; pointer-events: none;
+    background: conic-gradient(from 300deg, transparent 0deg, rgb(255 245 230 / .10) 25deg, transparent 55deg, transparent 180deg, rgb(255 245 230 / .06) 205deg, transparent 235deg);
+    -webkit-mask: radial-gradient(circle, transparent 0 17%, #000 18% 98%, transparent 99%);
+            mask: radial-gradient(circle, transparent 0 17%, #000 18% 98%, transparent 99%);
+  }
+  #arm { position: absolute; left: 870px; top: 120px; transition: transform 900ms cubic-bezier(.45,.05,.25,1); }
+  #arm .pivot { position: absolute; left: -46px; top: -46px; width: 92px; height: 92px; border-radius: 50%;
+    background: radial-gradient(circle at 38% 35%, #e3bd85, var(--brass) 45%, #6b4c25 100%); box-shadow: 0 10px 18px rgb(0 0 0 / .55), inset 0 -4px 8px rgb(0 0 0 / .3); }
+  #arm .pivot::after { content: ""; position: absolute; inset: 26px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #3a342e, #1a1613); box-shadow: inset 0 2px 4px rgb(0 0 0 / .6); }
+  #arm .counterweight { position: absolute; left: -24px; top: -110px; width: 48px; height: 58px; border-radius: 10px;
+    background: linear-gradient(90deg, #2c2724, #4a433d 45%, #2a2522); box-shadow: 0 8px 14px rgb(0 0 0 / .5); }
+  #arm .tube { position: absolute; left: -7px; top: 0; width: 14px; height: 560px; border-radius: 7px; transform-origin: 7px 0; transform: rotate(14deg);
+    background: linear-gradient(90deg, #8f8a83, #e9e4dc 40%, #a7a199 70%, #6f6a64); box-shadow: 10px 16px 14px rgb(0 0 0 / .45); transition: box-shadow 600ms ease; }
+  #arm .head { position: absolute; left: -28px; bottom: -64px; width: 56px; height: 78px; border-radius: 8px 8px 12px 12px; transform: rotate(-22deg);
+    background: linear-gradient(90deg, #26211d, #48413b 50%, #26211d); box-shadow: 8px 12px 12px rgb(0 0 0 / .5); }
+  #arm .head::after { content: ""; position: absolute; right: -18px; top: 14px; width: 22px; height: 6px; border-radius: 3px; background: var(--brass); }
+  #arm.lifted .tube { box-shadow: 22px 34px 22px rgb(0 0 0 / .35); }
+  /* La púa aterriza: la sombra se achica de golpe con un rebote mínimo. */
+  #arm.land .tube { animation: land 520ms cubic-bezier(.3,1.5,.5,1); }
+  @keyframes land { 0% { box-shadow: 22px 34px 22px rgb(0 0 0 / .35); } 55% { box-shadow: 7px 11px 10px rgb(0 0 0 / .55); } 100% { box-shadow: 10px 16px 14px rgb(0 0 0 / .45); } }
+  #rest { position: absolute; left: 728px; top: 585px; width: 40px; height: 56px; border-radius: 8px;
+    background: linear-gradient(90deg, #2a2522, #4a433d, #2a2522); box-shadow: 0 8px 12px rgb(0 0 0 / .5); }
+  #knob { position: absolute; left: 70px; bottom: 50px; width: 64px; height: 64px; border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #4a433d, #1f1b18); box-shadow: 0 6px 10px rgb(0 0 0 / .5); }
+  #knob::after { content: ""; position: absolute; left: 30px; top: 8px; width: 4px; height: 16px; border-radius: 2px; background: var(--brass); }
+  .engrave { font-family: var(--f-engrave); font-weight: 500; text-transform: uppercase; letter-spacing: .24em; }
+  #rpm { position: absolute; left: 152px; bottom: 74px; font-size: 20px; color: rgb(238 227 207 / .5); }
+  #pilot { position: absolute; left: 154px; bottom: 54px; width: 10px; height: 10px; border-radius: 50%;
+    background: #e8a54c; box-shadow: 0 0 10px 2px rgb(232 165 76 / .6); transition: opacity 400ms; }
+  .paused #pilot { opacity: .2; }
+
+  /* ---------- Columna de lectura ---------- */
+  #info { position: absolute; left: 1160px; top: 168px; width: 680px; transition: opacity 400ms; }
+  #seed { display: flex; align-items: baseline; gap: 16px; font-size: 24px; color: var(--brass); }
+  #seed .kind { font-weight: 700; flex: none; }
+  #seed .name { color: rgb(194 146 79 / .78); letter-spacing: .14em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  #title { margin-top: 30px; font-family: var(--f-display); font-size: 78px; line-height: 1.04; letter-spacing: -.01em; text-wrap: balance;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  #artist { margin-top: 20px; font-family: var(--f-display); font-size: 42px; color: var(--cream-2); }
+  #side { margin-top: 26px; font-size: 20px; color: var(--cream-3); min-height: 24px; }
+  #progress { margin-top: 30px; display: flex; align-items: center; gap: 20px; font-size: 20px; color: var(--cream-3); font-variant-numeric: tabular-nums; }
+  #bar { flex: 1; height: 3px; border-radius: 2px; background: var(--cream-4); overflow: hidden; }
+  #bar > div { height: 100%; width: 0; background: var(--brass); }
+  #state { margin-top: 16px; height: 24px; font-size: 20px; color: #e3bd85; opacity: 0; transition: opacity 300ms; }
+  .paused #state { opacity: 1; }
+
+  #queue { margin-top: 64px; }
+  #queue h3 { font-size: 18px; color: var(--cream-3); margin-bottom: 14px; font-weight: 500; }
+  #queue ol { list-style: none; display: grid; gap: 4px; }
+  #queue li { display: grid; grid-template-columns: 52px 1fr; align-items: center; gap: 18px; padding: 8px 0; font-size: 24px; color: var(--cream-2); }
+  #queue li .thumb { width: 52px; height: 52px; border-radius: 3px; background-size: auto 100%; background-position: center; opacity: .85; }
+  #queue li .a { color: var(--cream-3); }
+  #queue li .t { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #queue li.shuffle { color: var(--brass); }
+  #queue li.shuffle .thumb { display: grid; place-items: center; background: var(--cream-4); font-size: 26px; }
+
+  #hints { position: absolute; right: 80px; bottom: 50px; display: flex; gap: 34px; font-size: 18px; color: rgb(238 227 207 / .3); }
+  #hints b { font-weight: 500; color: rgb(238 227 207 / .5); margin-right: 8px; }
+
+  /* ---------- Panel "Elegí qué suena" (QR) ---------- */
+  #picker {
+    position: absolute; top: 0; right: 0; bottom: 0; width: 780px; padding: 150px 90px 0 120px;
+    background: linear-gradient(90deg, rgb(22 18 15 / 0) 0, rgb(22 18 15 / .97) 110px);
+    transform: translateX(100%); transition: transform 600ms cubic-bezier(.3,.7,.2,1);
+  }
+  .picking #picker { transform: none; }
+  .picking #info { opacity: 0; }
+  #picker h2 { font-family: var(--f-display); font-weight: 400; font-size: 60px; line-height: 1.05; }
+  #picker p { margin-top: 18px; font-size: 24px; line-height: 1.45; color: var(--cream-2); max-width: 30ch; }
+  #sleeve { margin-top: 44px; display: grid; grid-template-columns: 260px 1fr; gap: 36px; align-items: center; }
+  #qr { width: 260px; height: 260px; padding: 18px; border-radius: 6px; background: var(--cream); box-shadow: 0 20px 40px rgb(0 0 0 / .5); }
+  #qr canvas { width: 100%; height: 100%; image-rendering: pixelated; display: block; }
+  #sleeve .url { font-size: 22px; color: var(--cream-3); line-height: 1.5; }
+  #sleeve .url b { display: block; font-weight: 500; color: var(--brass); font-size: 26px; margin-top: 6px; }
+  #recent { margin-top: 64px; }
+  #recent h3 { font-size: 18px; color: var(--cream-3); margin-bottom: 14px; font-weight: 500; }
+  #recent li { list-style: none; display: flex; gap: 16px; align-items: baseline; padding: 9px 0; font-size: 24px; color: var(--cream-3); }
+  #recent li .k { font-family: var(--f-engrave); font-size: 17px; letter-spacing: .2em; text-transform: uppercase; color: var(--brass); width: 104px; flex: none; }
+  #recent li.on { color: var(--cream); }
+
+  #toast { position: absolute; left: 50%; bottom: 120px; transform: translate(-50%, 20px); padding: 16px 28px; border-radius: 40px;
+    background: rgb(46 34 26 / .95); color: var(--cream); font-size: 24px; opacity: 0; transition: opacity 300ms, transform 300ms; box-shadow: 0 10px 30px rgb(0 0 0 / .5); }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  .fade { transition: opacity 450ms ease, transform 600ms cubic-bezier(.2,.7,.2,1); }
+  .fade.out { opacity: 0; transform: translateY(14px); }
+
+  /* Modo salvapantallas: queda el tocadiscos al centro, apenas un epígrafe; todo deriva despacio. */
+  #caption { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); text-align: center; opacity: 0; transition: opacity 1800ms ease; }
+  #caption .t { font-family: var(--f-display); font-size: 34px; }
+  #caption .a { margin-top: 6px; font-size: 18px; color: var(--cream-3); }
+  #info, #hints { transition: opacity 1200ms ease; }
+  .idle #info, .idle #hints { opacity: 0; }
+  .idle #caption { opacity: 1; }
+  .idle #deck { transform: translate(380px, -40px) scale(.94); }
+  .idle #deck #plinth { animation: drift 40s ease-in-out infinite alternate; }
+  @keyframes drift { from { translate: -30px 0; } to { translate: 30px -16px; } }
+  @media (prefers-reduced-motion: reduce) { #arm, #picker, .fade, #deck, #disc { transition: none; } .playing #platter, .idle #deck #plinth, #arm.land .tube { animation: none; } }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="ambient"><i></i><i></i></div>
+  <div id="deck">
+    <div id="plinth">
+      <div id="platter">
+        <div id="disc"><div id="record"><div id="label"></div></div><div id="sheen"></div></div>
+        <div id="spindle"></div>
+      </div>
+      <div id="rest"></div>
+      <div id="arm"><div class="counterweight"></div><div class="tube"><div class="head"></div></div><div class="pivot"></div></div>
+      <div id="knob"></div>
+      <div id="rpm" class="engrave">33⅓ rpm</div>
+      <div id="pilot"></div>
+    </div>
+  </div>
+
+  <div id="info">
+    <div id="seed" class="engrave fade"><span class="kind"></span><span class="name"></span></div>
+    <div id="title" class="fade"></div>
+    <div id="artist" class="fade"></div>
+    <div id="side" class="engrave fade"></div>
+    <div id="progress"><span id="t-cur">0:00</span><div id="bar"><div></div></div><span id="t-len">0:00</span></div>
+    <div id="state" class="engrave">En pausa</div>
+    <div id="queue" class="fade"><h3 class="engrave">Lo que viene</h3><ol id="queue-list"></ol></div>
+  </div>
+
+  <aside id="picker" aria-label="Elegí qué suena">
+    <h2>Elegí qué suena</h2>
+    <p>Escaneá con el celular y buscá un tema, un disco o una playlist.</p>
+    <div id="sleeve">
+      <div id="qr"></div>
+      <div class="url">o entrá desde el navegador a<b>vinilo.local:8080</b></div>
+    </div>
+    <div id="recent"><h3 class="engrave">Estaciones recientes · ↑↓</h3><ul id="recent-list"></ul></div>
+  </aside>
+
+  <div id="hints"><span><b>→</b>siguiente</span><span><b>OK</b>pausa</span><span><b>↑↓</b>estación</span><span><b>≡</b>elegir música</span></div>
+  <div id="caption"><div class="t"></div><div class="a"></div></div>
+  <div id="toast"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+  // ---- Datos de ejemplo (miniaturas reales de YouTube Music) ----
+  const thumb = id => `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`;
+  const T = {
+    ligera:  { id: "sWft4cMiwXQ", t: "De Música Ligera", a: "Soda Stereo", len: 213 },
+    crimen:  { id: "YVXNPPdh6wE", t: "Crimen", a: "Gustavo Cerati", len: 230 },
+    hoteles: { id: "oMszTlYRxWg", t: "Demoliendo Hoteles", a: "Charly García", len: 188 },
+    mariposa:{ id: "xJCMt00NQ1Q", t: "Mariposa Tecknicolor", a: "Fito Páez", len: 264 },
+    matador: { id: "dKJM2ux3bF8", t: "Matador", a: "Los Fabulosos Cadillacs", len: 279 },
+    seguir:  { id: "VSWSnIcnoH4", t: "Seguir Viviendo Sin Tu Amor", a: "Luis Alberto Spinetta", len: 197 },
+  };
+  // Un disco: todos los temas comparten la tapa. (Ejemplo: orden y duraciones aproximados.)
+  const animal = ["(En) El Séptimo Día", "Un Millón de Años Luz", "Canción Animal", "1990", "Hombre al Agua",
+    "Cae el Sol", "Entre Caníbales", "Té para Tres", "Sueles Dejarme Solo", "De Música Ligera"]
+    .map((t, i) => ({ id: "sWft4cMiwXQ", t, a: "Soda Stereo", len: 180 + (i * 37) % 120, side: i < 5 ? "A" : "B", n: i < 5 ? i + 1 : i - 4 }));
+  // Pool para "enganchar": en la app real sale del mix de YT Music / relacionados.
+  const pool = Object.values(T);
+  const SEEDS = {
+    album:    { kind: "Disco", name: "Canción Animal · 1990", tracks: animal },
+    playlist: { kind: "Playlist", name: "Rock nacional esencial", tracks: [T.hoteles, T.mariposa, T.matador, T.ligera] },
+    song:     { kind: "Tema", name: "Crimen", tracks: [T.crimen] },
+  };
+
+  // ---- Escalado 1920x1080 → ventana ----
+  const stage = document.getElementById("stage");
+  const fit = () => { const k = Math.min(innerWidth / 1920, innerHeight / 1080); stage.style.transform = `scale(${k}) translate(-50%, -50%)`; };
+  addEventListener("resize", fit); fit();
+
+  // ---- QR (en la app real lo genera la tele con su propia dirección) ----
+  (function drawQr() {
+    if (typeof qrcode !== "function") return;
+    const q = qrcode(0, "M"); q.addData("http://vinilo.local:8080"); q.make();
+    const n = q.getModuleCount(), c = document.createElement("canvas"); c.width = c.height = n;
+    const g = c.getContext("2d"); g.fillStyle = "#2e1c10";
+    for (let r = 0; r < n; r++) for (let col = 0; col < n; col++) if (q.isDark(r, col)) g.fillRect(col, r, 1, 1);
+    document.getElementById("qr").appendChild(c);
+  })();
+
+  // ---- Estado ----
+  const $ = id => document.getElementById(id);
+  const arm = $("arm"), record = $("record"), label = $("label"), sheen = $("sheen");
+  let stations = [];          // semillas recientes, la actual primero
+  let st = 0, queue = [], idx = 0, pos = 0, playing = false, changing = false, angle = 0, speed = 0;
+  const RPM_DEG = 33.333 * 360 / 60;
+  const ARM_REST = 0, ARM_START = 8, ARM_END = 29;
+  const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+  const cur = () => queue[idx];
+  const station = () => stations[st];
+
+  // Cola = la semilla entera; cuando se acaba, se suman parecidos al azar sin repetir los últimos.
+  function topUp() {
+    while (queue.length - idx < 4) {
+      const recent = new Set(queue.slice(-5).map(x => x.t));
+      const options = pool.filter(p => !recent.has(p.t));
+      const pick = options[Math.floor(Math.random() * options.length)] || pool[0];
+      queue.push({ ...pick, auto: true });
+    }
+  }
+
+  function render() {
+    const tr = cur(), s = station();
+    $("seed").querySelector(".kind").textContent = tr.auto ? "Enganchando" : s.kind;
+    $("seed").querySelector(".name").textContent = tr.auto ? `parecidos a ${s.name.split(" · ")[0]}` : s.name;
+    $("title").textContent = tr.t;
+    $("artist").textContent = tr.a;
+    $("side").textContent = tr.side ? `Lado ${tr.side} · tema ${tr.n}` : "";
+    $("t-len").textContent = fmt(tr.len);
+    label.style.backgroundImage = `url(${thumb(tr.id)})`;
+    setAmbient(thumb(tr.id));
+    $("caption").querySelector(".t").textContent = tr.t;
+    $("caption").querySelector(".a").textContent = tr.a;
+    const up = queue.slice(idx + 1, idx + 4);
+    const firstAuto = tr.auto ? -1 : up.findIndex(u => u.auto);
+    $("queue-list").innerHTML = up.map((u, k) =>
+      (k === firstAuto ? `<li class="shuffle"><div class="thumb">⤨</div><span class="t">Termina ${s.kind === "Tema" ? "el tema" : s.kind === "Disco" ? "el disco" : "la playlist"}: siguen parecidos al azar</span></li>` : "") +
+      `<li><div class="thumb" style="background-image:url(${thumb(u.id)})"></div><span class="t">${u.t} <span class="a">· ${u.a}</span></span></li>`
+    ).slice(0, 3).join("");
+    $("recent-list").innerHTML = stations.map((s2, k) =>
+      `<li class="${k === st ? "on" : ""}"><span class="k">${s2.kind}</span>${s2.name}</li>`).join("");
+  }
+
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const setArm = (deg, lifted) => {
+    const landing = arm.classList.contains("lifted") && !lifted;
+    arm.style.transform = `rotate(${deg}deg)`; arm.classList.toggle("lifted", lifted);
+    if (landing) { arm.classList.remove("land"); void arm.offsetWidth; arm.classList.add("land"); }
+  };
+  // Dos capas que se funden: la tapa nueva aparece mientras la anterior se apaga.
+  let ambientTop = 0, ambientUrl = "";
+  function setAmbient(url) {
+    if (url === ambientUrl) return; ambientUrl = url;
+    const layers = document.querySelectorAll("#ambient i");
+    ambientTop = 1 - ambientTop;
+    layers[ambientTop].style.backgroundImage = `url(${url})`;
+    layers[ambientTop].classList.add("on"); layers[1 - ambientTop].classList.remove("on");
+  }
+  const fades = on => document.querySelectorAll(".fade").forEach(e => e.classList.toggle("out", on));
+
+  async function change(update) {
+    if (changing) return; changing = true; playing = false;
+    setArm(ARM_REST + 2, true); fades(true);
+    await sleep(700);
+    const before = cur() && cur().id;
+    update(); topUp(); pos = 0;
+    if (before && cur().id !== before) {          // otro disco: sale el viejo, entra el nuevo
+      $("disc").classList.add("away"); await sleep(480);
+      render(); $("disc").classList.remove("away"); await sleep(380);
+    } else render();
+    fades(false);
+    await sleep(300); setArm(ARM_START, true);
+    await sleep(950); setArm(ARM_START, false);
+    stage.classList.remove("paused"); playing = true; changing = false; stage.classList.add("playing");
+  }
+  const next = () => change(() => { idx++; });
+  const goStation = d => change(() => { st = (st + d + stations.length) % stations.length; queue = [...station().tracks]; idx = 0; });
+  function playSeed(seed) {
+    stage.classList.remove("picking");
+    toast(`${seed.kind}: ${seed.name.split(" · ")[0]}`);
+    change(() => { stations = [seed, ...stations.filter(s => s.name !== seed.name)].slice(0, 5); st = 0; queue = [...seed.tracks]; idx = 0; });
+  }
+  function togglePause() {
+    if (changing) return;
+    playing = !playing; stage.classList.toggle("paused", !playing); stage.classList.toggle("playing", playing);
+    setArm(ARM_START + (ARM_END - ARM_START) * (pos / cur().len), !playing);
+  }
+  let toastTimer;
+  function toast(msg) { const t = $("toast"); t.textContent = `Desde el celular · ${msg}`; t.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 2600); }
+
+  // Salvapantallas: sin tocar nada un rato, queda solo el tocadiscos. Cualquier tecla lo despierta.
+  const IDLE_MS = 20000;
+  let idleTimer;
+  function wake() {
+    const wasIdle = stage.classList.contains("idle");
+    stage.classList.remove("idle"); clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => { if (!stage.classList.contains("picking")) stage.classList.add("idle"); }, IDLE_MS);
+    return wasIdle;
+  }
+  wake();
+
+  addEventListener("keydown", e => {
+    if (wake()) { e.preventDefault(); return; }   // la primera tecla solo despierta
+    const k = e.key;
+    if (k === "ArrowRight") next();
+    else if (k === "ArrowUp") goStation(-1);
+    else if (k === "ArrowDown") goStation(1);
+    else if (k === "Enter" || k === " ") togglePause();
+    else if (k === "m" || k === "M" || k === "ContextMenu") stage.classList.toggle("picking");
+    else if (k === "Escape" || k === "Backspace") stage.classList.remove("picking");
+    else return;
+    e.preventDefault();
+  });
+
+  // Órdenes del celular (en la app real llegan por HTTP a la página que sirve la tele).
+  addEventListener("message", e => {
+    const m = e.data || {};
+    wake();
+    const seed = typeof m.seed === "string" ? SEEDS[m.seed] : m.seed;
+    if (m.type === "play" && seed && seed.tracks && seed.tracks.length) playSeed(seed);
+    else if (m.type === "next") next();
+    else if (m.type === "pause") togglePause();
+    else if (m.type === "picker") stage.classList.toggle("picking", !!m.open);
+  });
+  const report = () => { if (parent !== window) parent.postMessage({ type: "now", now: cur(), seed: { kind: station().kind, name: station().name }, playing }, "*"); };
+
+  // ---- Bucle: giro con inercia, progreso y brazo hacia el centro ----
+  let last = performance.now(), lastReport = 0;
+  function tick(now) {
+    const dt = Math.min(.1, (now - last) / 1000); last = now;
+    speed += ((playing ? RPM_DEG : 0) - speed) * Math.min(1, dt * (playing ? 1.6 : 1.1));
+    angle = (angle + speed * dt) % 360;
+    record.style.transform = `rotate(${angle}deg)`;
+    sheen.style.opacity = (.8 + .2 * Math.sin(angle * Math.PI / 90)).toFixed(3);   // el brillo titila con los surcos
+    if (playing && !changing) {
+      pos += dt * 6;   // mockup: el tiempo corre 6x
+      if (pos >= cur().len) next(); else setArm(ARM_START + (ARM_END - ARM_START) * (pos / cur().len), false);
+    }
+    $("t-cur").textContent = fmt(pos);
+    $("bar").firstElementChild.style.width = `${(pos / cur().len) * 100}%`;
+    if (now - lastReport > 400) { lastReport = now; report(); }
+    requestAnimationFrame(tick);
+  }
+
+  stations = [SEEDS.album, SEEDS.song, SEEDS.playlist];
+  queue = [...SEEDS.album.tracks]; idx = 8;   // penúltimo tema del disco: en un rato se ve el enganche
+  topUp(); render(); setArm(ARM_REST, true); requestAnimationFrame(tick);
+  setTimeout(() => change(() => {}), 600);
+</script>
+</body>
+</html>
