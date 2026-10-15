@@ -19,3 +19,4 @@ captures/
 # Secretos — nunca al repo
 .env
 secrets/
+.firetv
