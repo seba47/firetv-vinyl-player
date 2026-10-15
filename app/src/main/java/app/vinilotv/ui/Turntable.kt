@@ -54,6 +54,8 @@ private val BR_FINGER = Brush.horizontalGradient(listOf(Color(0xFF8C6A37), Color
 private val BR_PIVOT = Brush.radialGradient(0f to Color(0xFFF0D29F), .42f to Palette.Brass, 1f to Color(0xFF6B4C25),     center = ArmPivot - Offset(8f, 11f), radius = 46f)
 private val BR_PIVOT_IN = Brush.radialGradient(listOf(Color(0xFF48403A), Color(0xFF191512)), ArmPivot - Offset(3f, 4f), 16f)
 private val BR_TUBE = Brush.horizontalGradient(0f to Color(0xFF77726B), .34f to Color(0xFFF6F2EB), .52f to Color(0xFFC3BDB4), .78f to Color(0xFF8D8881), 1f to Color(0xFF5C5752), startX = -6f, endX = 6f)
+private val SCREWS = listOf(Offset(37f, 37f), Offset(DECK_W - 37f, 37f))
+private val BR_SCREWS = SCREWS.map { Brush.radialGradient(listOf(Color(0xFFF0D29F), Color(0xFFC2924F), Color(0xFF6B4C25)), it - Offset(3f, 4f), 13f) }
 private val BR_PILOT = Brush.radialGradient(listOf(Color(0xFFE8A54C).copy(alpha = .55f), Color.Transparent), Offset(159f, 801f), 18f)
 private val SHELL_PATH = shellPath()
 
@@ -126,6 +128,15 @@ fun DrawScope.drawSheen() {
 fun DrawScope.drawSpindle() {
     drawCircle(Color.Black.copy(alpha = .7f), 9f, PlatterCenter + Offset(0f, 1.5f))
     drawCircle(BR_SPINDLE, 8f, PlatterCenter)
+}
+
+/** Tornillos de latón que sostienen el tocadiscos colgado en la pared (fondo estufa). */
+fun DrawScope.drawWallScrews(alpha: Float) {
+    SCREWS.forEachIndexed { i, c ->
+        drawCircle(Color.Black, 11f, c + Offset(0f, 2f), alpha = .5f * alpha)
+        drawCircle(BR_SCREWS[i], 11f, c, alpha = alpha)
+        rotate(35f, c) { drawRect(Color(0xB33C2814), c + Offset(-7f, -1f), Size(14f, 2f), alpha = alpha) }
+    }
 }
 
 /** Luz piloto: prendida mientras suena. */

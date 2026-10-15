@@ -228,14 +228,15 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean, look: App
         // Tocadiscos
         Box(
             Modifier.place(s, 80f, 120f, DECK_W, DECK_H).graphicsLayer {
+                // centrado (salvapantallas) o colgado en la pared (estufa: de frente, un poco más chico)
                 translationX = 380f * k * centerT
-                translationY = -78f * k * centerT
-                scaleX = 1f - .08f * centerT; scaleY = scaleX
+                translationY = (-78f + 42f * estufaT) * k * centerT
+                scaleX = 1f - (.08f + .12f * estufaT) * centerT; scaleY = scaleX
             },
         ) {
             Box(
                 Modifier.fillMaxSize().graphicsLayer {
-                    rotationX = 24f
+                    rotationX = 24f * (1f - estufaT)          // con la estufa queda colgado: de frente
                     transformOrigin = TransformOrigin(.5f, 1f)
                     cameraDistance = 18f * density
                 },
@@ -272,6 +273,7 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean, look: App
                 }
                 DeckCanvas(Modifier.fillMaxSize(), k) {
                     drawSpindle()
+                    if (estufaT > 0f) drawWallScrews(estufaT)
                     drawPilot(if (playing) 1f else 0f)
                     val onRecord = motion.lift < .03f && playing
                     val a = motion.recordAngle * PI.toFloat() / 180f

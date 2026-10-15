@@ -152,8 +152,9 @@ suspend fun bakePlaster(level: Int, edgeTop: Int, edgeBottom: Int): ImageBitmap 
     }
     c.drawLine(topR, 0f, botR, h.toFloat(), edge)
     c.drawLine(topL, 0f, botL, h.toFloat(), edge.apply { color = 0x14000000 })
-    // sombra del tocadiscos sobre la pared (composición centrada: gabinete en ~505..1415 x 235..865 de 1920x1080)
-    c.drawRoundRect(RectF(260f, 140f, 706f, 452f), 14f, 14f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    // sombra del tocadiscos colgado sobre la pared (gabinete de frente en ~560..1360 x 170..858 de
+    // 1920x1080): separado unos centímetros del yeso, la sombra cae hacia abajo
+    c.drawRoundRect(RectF(284f, 104f, 676f, 452f), 14f, 14f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0x5A2A1C12
         maskFilter = android.graphics.BlurMaskFilter(26f, android.graphics.BlurMaskFilter.Blur.NORMAL)
     })
