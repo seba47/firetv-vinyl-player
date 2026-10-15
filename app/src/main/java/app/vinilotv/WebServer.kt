@@ -69,10 +69,17 @@ class WebServer private constructor(private val context: Context, port: Int) : N
     private fun SearchResult.toJson() = JSONObject().put("kind", kind.name).put("title", title).put("subtitle", subtitle)
         .put("url", url).put("thumb", thumbnailUrl ?: "").put("count", trackCount)
 
+    // Se lee a mano como UTF-8: parseBody() de NanoHTTPD usa ISO-8859-1 y rompe acentos y eñes.
     private fun body(session: IHTTPSession): String {
-        val files = HashMap<String, String>()
-        session.parseBody(files)
-        return files["postData"].orEmpty()
+        val len = session.headers["content-length"]?.toIntOrNull() ?: return ""
+        val buf = ByteArray(len)
+        var read = 0
+        while (read < len) {
+            val n = session.inputStream.read(buf, read, len - read)
+            if (n < 0) break
+            read += n
+        }
+        return String(buf, 0, read, Charsets.UTF_8)
     }
 
     private fun asset(name: String, mime: String): Response =

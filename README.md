@@ -45,3 +45,4 @@ de sonar. Tipografías: Young Serif, Familjen Grotesk y Big Shoulders Text (OFL,
 - [docs/setup-mac.md](docs/setup-mac.md) — qué hace falta en la Mac.
 - [docs/firetv.md](docs/firetv.md) — activar modo desarrollador y adb por WiFi en el Fire TV.
 - [docs/actualizar-extractor.md](docs/actualizar-extractor.md) — cuando YouTube rompe algo.
+- [docs/rendimiento.md](docs/rendimiento.md) — qué traba la GPU del Fire TV y cómo medirlo (`scripts/perf.sh`).

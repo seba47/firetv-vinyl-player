@@ -29,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -46,7 +47,13 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.unit.IntSize
+import kotlinx.coroutines.async
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -133,9 +140,13 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean) {
         val k = constraints.maxWidth / 1920f
         val s = Stage(k, LocalDensity.current)
         val motion = remember { DeckMotion() }
+        val shadows = remember { bakeArmShadows() }
         val current by rememberUpdatedState(state.current)
         val playing by rememberUpdatedState(state.playing && !state.loading)
         var labelUrl by remember { mutableStateOf<String?>(null) }
+        var label by remember { mutableStateOf<ImageBitmap?>(null) }
+        val context = LocalContext.current
+        val labelPx = (LABEL_R * 2 * k).toInt().coerceAtLeast(8)
         val discAway = remember { Animatable(0f) }
         var lastItem by remember { mutableStateOf<QueueItem?>(null) }
 
@@ -161,15 +172,17 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean) {
             val prev = lastItem
             lastItem = next
             val newCover = next.track.thumbnailUrl
-            if (prev == null) { labelUrl = newCover; return@LaunchedEffect }
+            if (prev == null) { label = bakeLabel(context, newCover, labelPx); labelUrl = newCover; return@LaunchedEffect }
             if (continuesAlbum(prev, next) && labelUrl == newCover) return@LaunchedEffect   // el surco sigue solo
             motion.sequence = true
             motion.liftTarget = 1f
             delay(380)
             if (newCover != labelUrl) {
                 motion.armTarget = ARM_REST + 1.5f
+                val baked = async { bakeLabel(context, newCover, labelPx) }   // se prepara mientras el brazo vuelve
                 delay(700)
                 discAway.animateTo(1f, tween(480, easing = FastOutSlowInEasing))
+                label = baked.await()
                 labelUrl = newCover
                 discAway.animateTo(0f, tween(420, easing = FastOutSlowInEasing))
             }
@@ -181,8 +194,8 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean) {
         val idleT by animateFloatAsState(if (idle) 1f else 0f, tween(2600, easing = FastOutSlowInEasing), label = "idle")
         val pickerT by animateFloatAsState(if (pickerOpen) 1f else 0f, tween(600, easing = FastOutSlowInEasing), label = "picker")
 
-        // Luz ambiente: la tapa en 12 px estirada a toda la pantalla (= desenfocada).
-        AmbientLight(state.current?.track?.thumbnailUrl)
+        // Fondo con luz ambiente (la tapa desenfocada): una sola imagen chica estirada.
+        Backdrop(state.current?.track?.thumbnailUrl)
 
         // Tocadiscos
         Box(
@@ -199,7 +212,7 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean) {
                     cameraDistance = 18f * density
                 },
             ) {
-                Box(Modifier.fillMaxSize().drawWithCache { onDrawBehind { scale(k, k, Offset.Zero) { drawPlinth() } } })
+                Box(Modifier.fillMaxSize().baked(k) { drawPlinth() })
                 // disco + etiqueta (se van juntos al cambiar de disco)
                 Box(
                     Modifier.fillMaxSize().graphicsLayer {
@@ -208,19 +221,15 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean) {
                         scaleX = 1f + .06f * a; scaleY = scaleX; alpha = 1f - a
                     },
                 ) {
-                    Box(Modifier.fillMaxSize().drawWithCache { onDrawBehind { scale(k, k, Offset.Zero) { drawRecord() } } })
-                    AsyncImage(
-                        model = labelUrl,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,                  // recorta la tapa cuadrada del 16:9
-                        modifier = Modifier
-                            .place(s, PlatterCenter.x - LABEL_R, PlatterCenter.y - LABEL_R, LABEL_R * 2, LABEL_R * 2)
-                            .graphicsLayer { rotationZ = motion.recordAngle }
-                            .clip(CircleShape)
-                            .background(Color(0xFF3A2A1D)),
-                    )
-                    Box(Modifier.fillMaxSize().graphicsLayer { alpha = .8f + .2f * sin(motion.recordAngle * PI.toFloat() / 90f) }
-                        .drawWithCache { onDrawBehind { scale(k, k, Offset.Zero) { drawSheen() } } })
+                    // solo el cuadrado del disco: una imagen del tamaño del gabinete sería casi toda transparente
+                    Box(Modifier.place(s, PlatterCenter.x - RECORD_R, PlatterCenter.y - RECORD_R, RECORD_R * 2, RECORD_R * 2)
+                        .baked(k) { translate(RECORD_R - PlatterCenter.x, RECORD_R - PlatterCenter.y) { drawRecord(); drawSheen() } })
+                    // etiqueta: la tapa ya recortada en círculo, solo se gira (recortar en cada cuadro traba)
+                    Canvas(Modifier.place(s, PlatterCenter.x - LABEL_R, PlatterCenter.y - LABEL_R, LABEL_R * 2, LABEL_R * 2)) {
+                        val img = label
+                        if (img == null) drawCircle(Color(0xFF3A2A1D))
+                        else rotate(motion.recordAngle) { drawImage(img, dstSize = IntSize(size.width.toInt(), size.height.toInt()), filterQuality = FilterQuality.Low) }
+                    }
                 }
                 DeckCanvas(Modifier.fillMaxSize(), k) {
                     drawSpindle()
@@ -231,6 +240,7 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean) {
                         angle = motion.armAngle + if (onRecord) sin(a) * .07f else 0f,
                         lift = motion.lift,
                         bob = if (onRecord) sin(a * 2f) * .6f else 0f,
+                        shadows = shadows,
                     )
                 }
                 Engrave("33⅓ rpm", s, 20f, Palette.Cream.copy(alpha = .5f), Modifier.offset(s.dp(150f), s.dp(764f)))
@@ -250,7 +260,7 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean) {
                 label = "tema",
             ) { item -> NowPlaying(item, state.seed, s) }
             Spacer(Modifier.height(s.dp(30f)))
-            ProgressRow(motion.positionMs, motion.durationMs, s)
+            ProgressRow(motion, s)
             Spacer(Modifier.height(s.dp(16f)))
             val status = when {
                 state.loading -> "Cargando…"
@@ -293,25 +303,22 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean) {
 }
 
 @Composable
-private fun AmbientLight(url: String?) {
+private fun Backdrop(url: String?) {
     val context = LocalContext.current
-    Box(Modifier.fillMaxSize()) {
-        AsyncImage(
-            model = ImageRequest.Builder(context).data(url).size(16).precision(Precision.EXACT).memoryCacheKey("ambient:$url").crossfade(1800).build(),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            filterQuality = FilterQuality.High,
-            modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = 1.15f; scaleY = 1.15f; alpha = .42f },
-        )
-        Box(
-            Modifier.fillMaxSize().drawWithCache {
-                val vignette = Brush.radialGradient(
-                    0f to Palette.Room.copy(alpha = .15f), .8f to Palette.Room.copy(alpha = .78f), 1f to Palette.Room.copy(alpha = .9f),
-                    center = Offset(size.width * .32f, size.height * .55f), radius = size.width * .75f,
-                )
-                onDrawBehind { drawRect(vignette) }
-            },
-        )
+    var shown by remember { mutableStateOf<ImageBitmap?>(null) }
+    var previous by remember { mutableStateOf<ImageBitmap?>(null) }
+    val fade = remember { Animatable(1f) }
+    LaunchedEffect(url) {
+        val next = bakeBackdrop(context, url)
+        previous = shown; shown = next
+        fade.snapTo(0f); fade.animateTo(1f, tween(1800))
+        previous = null
+    }
+    Canvas(Modifier.fillMaxSize()) {
+        val dst = IntSize(size.width.toInt(), size.height.toInt())
+        drawRect(Palette.Room)
+        previous?.let { drawImage(it, dstSize = dst, filterQuality = FilterQuality.Low) }
+        shown?.let { drawImage(it, dstSize = dst, alpha = fade.value, filterQuality = FilterQuality.Low) }
     }
 }
 
@@ -350,19 +357,23 @@ private fun NowPlaying(item: QueueItem?, seed: Seed?, s: Stage) {
     }
 }
 
+/** Lee el avance acá adentro: así el cuadro a cuadro no recompone toda la pantalla. */
 @Composable
-private fun ProgressRow(positionMs: Long, durationMs: Long, s: Stage) {
-    fun fmt(ms: Long) = (ms / 1000).let { "%d:%02d".format(it / 60, it % 60) }
-    val frac = if (durationMs > 0) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
+private fun ProgressRow(motion: DeckMotion, s: Stage) {
+    fun fmt(sec: Long) = "%d:%02d".format(sec / 60, sec % 60)
+    val posSec by remember { derivedStateOf { motion.positionMs / 1000 } }
+    val durSec by remember { derivedStateOf { motion.durationMs / 1000 } }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        BasicText(fmt(positionMs), style = body(s, 20f, Palette.Cream3))
+        BasicText(fmt(posSec), style = body(s, 20f, Palette.Cream3))
         Spacer(Modifier.width(s.dp(20f)))
         Canvas(Modifier.weight(1f).height(s.dp(3f))) {
+            val d = motion.durationMs
+            val frac = if (d > 0) (motion.positionMs.toFloat() / d).coerceIn(0f, 1f) else 0f
             drawRect(Palette.Cream4)
             drawRect(Palette.Brass, size = Size(size.width * frac, size.height))
         }
         Spacer(Modifier.width(s.dp(20f)))
-        BasicText(fmt(durationMs), style = body(s, 20f, Palette.Cream3))
+        BasicText(fmt(durSec), style = body(s, 20f, Palette.Cream3))
     }
 }
 
