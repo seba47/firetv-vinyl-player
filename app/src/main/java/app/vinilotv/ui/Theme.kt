@@ -21,6 +21,10 @@ object Palette {
     val Brass = Color(0xFFC2924F)       // latón: estación, progreso, detalles
     val BrassLight = Color(0xFFE3BD85)
     val Vinyl = Color(0xFF111010)
+    // tinta para escribir sobre la pared de yeso (fondo estufa)
+    val Ink = Color(0xFF3B2F26)
+    val Ink2 = Color(0xFF3B2F26).copy(alpha = .62f)
+    val InkBrass = Color(0xFF8A5F2C)
 }
 
 // Tipografías empaquetadas (OFL, licencias en docs/licencias): en el Fire TV no hay fuentes

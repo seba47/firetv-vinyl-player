@@ -14,6 +14,9 @@ Sin servidor propio. Uso personal, sideload.
 - Control remoto: **→** siguiente · **OK** pausa · **↑↓** estaciones recientes · **≡** elegir música ·
   **Atrás** sale (la música sigue sonando de fondo; play/pausa del control y "Alexa, pausa" andan).
 - A los 3 minutos sin tocar nada queda solo el tocadiscos (salvapantallas propio).
+- **Fondo de la tele** (desde la página del celular): *Living* (oscuro, con la luz de la tapa; por
+  defecto) o *Estufa de yeso* (pared blanca con el relieve de la estufa donde está colgada la tele,
+  tocadiscos centrado), con brillo del yeso ajustable para que de noche no encandile.
 - Toques visuales (polvo, haz de luz —apagado—, alabeo del vinilo, cambio de lado A/B en los discos): cada uno
   se apaga con su llave en `app/src/main/java/app/vinilotv/ui/Touches.kt` y `scripts/install.sh`.
 

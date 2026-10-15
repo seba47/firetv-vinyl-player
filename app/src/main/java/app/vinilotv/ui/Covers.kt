@@ -97,4 +97,60 @@ private fun drawSideMark(canvas: Canvas, px: Int, side: Char) {
     canvas.drawText(side.toString(), cx, cy - (text.ascent() + text.descent()) / 2f, text)
 }
 
+/**
+ * Pared de yeso de la estufa, pintada una vez a media resolución (se estira a la pantalla):
+ * revoque con manchas y grano, luz de arriba, las caras de la estufa en relieve (siguiendo la
+ * columna: ~28 %–70 % arriba, abriéndose hacia abajo) y la sombra del tocadiscos sobre la pared.
+ * [level] = brillo del yeso en %.
+ */
+suspend fun bakePlaster(level: Int): ImageBitmap = withContext(Dispatchers.Default) {
+    val w = 960; val h = 540
+    val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+    val c = Canvas(out)
+    c.drawColor(androidx.core.graphics.ColorUtils.HSLToColor(floatArrayOf(40f, .14f, level / 100f)))
+    val rnd = java.util.Random(4)
+    // manchas del revoque: ruido de baja frecuencia estirado (dos escalas)
+    for ((gw, gh, a) in listOf(Triple(16, 9, .26f), Triple(44, 25, .14f))) {
+        val noise = Bitmap.createBitmap(gw, gh, Bitmap.Config.ARGB_8888)
+        val px = IntArray(gw * gh) { val v = 128 + (rnd.nextGaussian() * 38).toInt().coerceIn(-90, 90); android.graphics.Color.rgb(v, v, v) }
+        noise.setPixels(px, 0, gw, 0, 0, gw, gh)
+        c.drawBitmap(noise, null, RectF(0f, 0f, w.toFloat(), h.toFloat()), Paint(Paint.FILTER_BITMAP_FLAG).apply {
+            alpha = (255 * a).toInt(); xfermode = PorterDuffXfermode(PorterDuff.Mode.OVERLAY)
+        })
+    }
+    // grano fino
+    val grain = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+    grain.setPixels(IntArray(w * h) { val v = 128 + (rnd.nextGaussian() * 30).toInt().coerceIn(-70, 70); android.graphics.Color.rgb(v, v, v) }, 0, w, 0, 0, w, h)
+    c.drawBitmap(grain, 0f, 0f, Paint().apply { alpha = 26; xfermode = PorterDuffXfermode(PorterDuff.Mode.OVERLAY) })
+    // luz: más clara arriba a la izquierda, un poco más oscura abajo
+    c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), Paint().apply {
+        shader = android.graphics.LinearGradient(0f, 0f, 0f, h.toFloat(), 0x10FFF8EC, 0x1F000000, Shader.TileMode.CLAMP)
+    })
+    c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), Paint().apply {
+        shader = RadialGradient(w * .3f, h * .2f, w * .5f, 0x1AFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
+    })
+    // caras de la estufa: la derecha en sombra, la izquierda apenas iluminada, aristas suaves
+    val topL = w * .282f; val topR = w * .699f; val botL = -w * .04f; val botR = w * 1.04f
+    val right = android.graphics.Path().apply { moveTo(topR, 0f); lineTo(w.toFloat(), 0f); lineTo(w.toFloat(), h.toFloat()); lineTo(botR, h.toFloat()); close() }
+    val left = android.graphics.Path().apply { moveTo(0f, 0f); lineTo(topL, 0f); lineTo(botL, h.toFloat()); lineTo(0f, h.toFloat()); close() }
+    c.drawPath(right, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        shader = android.graphics.LinearGradient(topR, 0f, w.toFloat(), 0f, 0x26000000, 0x0F000000, Shader.TileMode.CLAMP)
+    })
+    c.drawPath(left, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        shader = android.graphics.LinearGradient(0f, 0f, topL, 0f, 0x08000000, 0x12FFFFFF, Shader.TileMode.CLAMP)
+    })
+    val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE; strokeWidth = 5f; color = 0x22000000
+        maskFilter = android.graphics.BlurMaskFilter(4f, android.graphics.BlurMaskFilter.Blur.NORMAL)
+    }
+    c.drawLine(topR, 0f, botR, h.toFloat(), edge)
+    c.drawLine(topL, 0f, botL, h.toFloat(), edge.apply { color = 0x14000000 })
+    // sombra del tocadiscos sobre la pared (composición centrada: gabinete en ~505..1415 x 235..865 de 1920x1080)
+    c.drawRoundRect(RectF(260f, 140f, 706f, 452f), 14f, 14f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0x5A2A1C12
+        maskFilter = android.graphics.BlurMaskFilter(26f, android.graphics.BlurMaskFilter.Blur.NORMAL)
+    })
+    out.asImageBitmap()
+}
+
 private fun withAlpha(argb: Int, a: Float) = (argb and 0x00FFFFFF) or ((255 * a).toInt() shl 24)

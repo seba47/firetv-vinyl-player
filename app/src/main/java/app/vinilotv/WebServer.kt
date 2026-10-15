@@ -17,6 +17,7 @@ import java.net.Inet4Address
  *   GET  /api/search?q=&kind=song|album|playlist
  *   POST /api/play          {kind,title,subtitle,url,thumb}: arranca esa estación
  *   POST /api/next, /api/toggle
+ *   POST /api/settings      {wall: LIVING|ESTUFA, plaster: 40..95}: fondo de la tele
  * Cualquiera en el mismo WiFi puede usarla (igual que el control remoto).
  */
 class WebServer private constructor(private val context: Context, port: Int) : NanoHTTPD(port) {
@@ -43,6 +44,13 @@ class WebServer private constructor(private val context: Context, port: Int) : N
                 main.post { Radio.play(seed, fromPhone = true) }
                 json(JSONObject().put("ok", true))
             }
+            path == "/api/settings" && session.method == Method.POST -> {
+                val o = JSONObject(body(session))
+                val wall = o.optString("wall").takeIf { it.isNotEmpty() }?.let { runCatching { Wall.valueOf(it) }.getOrNull() }
+                val plaster = if (o.has("plaster")) o.getInt("plaster") else null
+                main.post { Settings.update(wall, plaster) }
+                json(JSONObject().put("ok", true))
+            }
             path == "/api/next" && session.method == Method.POST -> { main.post { Radio.next() }; json(JSONObject().put("ok", true)) }
             path == "/api/toggle" && session.method == Method.POST -> { main.post { Radio.togglePause() }; json(JSONObject().put("ok", true)) }
             else -> newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "No existe")
@@ -64,6 +72,7 @@ class WebServer private constructor(private val context: Context, port: Int) : N
             .put("playing", s.playing)
             .put("loading", s.loading)
             .put("recent", JSONArray(s.recent.map { it.toJson() }))
+            .put("settings", Settings.state.value.toJson())
     }
 
     private fun SearchResult.toJson() = JSONObject().put("kind", kind.name).put("title", title).put("subtitle", subtitle)

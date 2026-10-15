@@ -38,9 +38,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         pendingQuery = intent.getStringExtra("q")
+        Settings.init(this)
 
         setContent {
             val state by Radio.state.collectAsStateWithLifecycle()
+            val look by Settings.state.collectAsStateWithLifecycle()
 
             // Al abrir: si viene una búsqueda desde la Mac la toca; si no, retoma la última estación.
             LaunchedEffect(state.ready) {
@@ -69,7 +71,7 @@ class MainActivity : ComponentActivity() {
             // Cuando llega algo desde el celular, se cierra el panel del QR.
             LaunchedEffect(state.toast?.first) { if (state.toast != null) pickerOpen = false }
 
-            VinylScreen(state, pickerOpen, idle)
+            VinylScreen(state, pickerOpen, idle, look)
         }
     }
 

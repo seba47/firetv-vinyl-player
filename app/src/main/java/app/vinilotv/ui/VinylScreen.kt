@@ -66,7 +66,10 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.em
+import app.vinilotv.Appearance
 import app.vinilotv.QueueItem
+import app.vinilotv.Wall
+import androidx.compose.ui.graphics.lerp
 import app.vinilotv.Radio
 import app.vinilotv.RadioState
 import app.vinilotv.Seed
@@ -143,7 +146,7 @@ private fun continuesAlbum(prev: QueueItem?, next: QueueItem?) =
     prev != null && next != null && prev.albumIndex >= 0 && next.albumIndex == prev.albumIndex + 1
 
 @Composable
-fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean) {
+fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean, look: Appearance = Appearance()) {
     BoxWithConstraints(Modifier.fillMaxSize().background(Palette.Room)) {
         val k = constraints.maxWidth / 1920f
         val s = Stage(k, LocalDensity.current)
@@ -213,17 +216,21 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean) {
         }
 
         val idleT by animateFloatAsState(if (idle) 1f else 0f, tween(2600, easing = FastOutSlowInEasing), label = "idle")
+        val estufa = look.wall == Wall.ESTUFA
+        val estufaT by animateFloatAsState(if (estufa) 1f else 0f, tween(1200, easing = FastOutSlowInEasing), label = "estufa")
+        // composición centrada: en el salvapantallas o con el fondo estufa
+        val centerT = maxOf(idleT, estufaT)
         val pickerT by animateFloatAsState(if (pickerOpen) 1f else 0f, tween(600, easing = FastOutSlowInEasing), label = "picker")
 
         // Fondo con luz ambiente (la tapa desenfocada): una sola imagen chica estirada.
-        Backdrop(state.current?.track?.thumbnailUrl)
+        Backdrop(state.current?.track?.thumbnailUrl, look.plaster, { estufaT })
 
         // Tocadiscos
         Box(
             Modifier.place(s, 80f, 120f, DECK_W, DECK_H).graphicsLayer {
-                translationX = 380f * k * idleT
-                translationY = -40f * k * idleT
-                scaleX = 1f - .06f * idleT; scaleY = scaleX
+                translationX = 380f * k * centerT
+                translationY = -78f * k * centerT
+                scaleX = 1f - .08f * centerT; scaleY = scaleX
             },
         ) {
             Box(
@@ -280,11 +287,11 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean) {
         }
 
         // Polvo en el aire y haz de luz (encima del tocadiscos, debajo del texto)
-        DustAndLight({ motion.time }, k)
+        DustAndLight({ motion.time }, k, Modifier.graphicsLayer { alpha = 1f - estufaT })   // sobre el yeso no se ve
 
         // Columna de lectura
         Column(
-            Modifier.place(s, 1160f, 168f, 680f, 840f).graphicsLayer { alpha = (1f - idleT) * (1f - pickerT) },
+            Modifier.place(s, 1160f, 168f, 680f, 840f).graphicsLayer { alpha = (1f - centerT) * (1f - pickerT) },
         ) {
             AnimatedContent(
                 targetState = state.current,
@@ -310,7 +317,7 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean) {
         // Ayuda del control
         Row(
             Modifier.align(Alignment.BottomEnd).padding(end = s.dp(80f), bottom = s.dp(50f))
-                .graphicsLayer { alpha = 1f - idleT },
+                .graphicsLayer { alpha = 1f - centerT },
             horizontalArrangement = Arrangement.spacedBy(s.dp(34f)),
         ) {
             listOf("→" to "siguiente", "OK" to "pausa", "↑↓" to "estación", "≡" to "elegir música").forEach { (key, what) ->
@@ -322,14 +329,23 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean) {
             }
         }
 
-        // Salvapantallas: solo un epígrafe abajo
+        // Composición centrada (salvapantallas o fondo estufa): epígrafe abajo, en tinta sobre el yeso
         Column(
-            Modifier.align(Alignment.BottomCenter).padding(bottom = s.dp(64f)).graphicsLayer { alpha = idleT },
+            Modifier.align(Alignment.BottomCenter).padding(bottom = s.dp(if (estufa) 40f else 64f))
+                .graphicsLayer { alpha = centerT * (1f - pickerT) },
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            BasicText(state.current?.track?.title.orEmpty(), style = TextStyle(fontFamily = Fonts.Display, fontSize = s.sp(34f), color = Palette.Cream))
+            val cur = state.current
+            if (estufa && cur != null) {
+                val line = if (cur.auto) "Enganchando · parecidos a ${state.seed?.title.orEmpty()}"
+                else listOfNotNull(state.seed?.kind?.label, state.seed?.title, sideOf(cur)?.let { "Lado ${it.letter}" }).joinToString(" · ")
+                Engrave(line, s, 18f, lerp(Palette.Brass, Palette.InkBrass, estufaT))
+                Spacer(Modifier.height(s.dp(10f)))
+            }
+            BasicText(cur?.track?.title.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                style = TextStyle(fontFamily = Fonts.Display, fontSize = s.sp(if (estufa) 46f else 34f), color = lerp(Palette.Cream, Palette.Ink, estufaT)))
             Spacer(Modifier.height(s.dp(6f)))
-            BasicText(state.current?.track?.artist.orEmpty(), style = body(s, 18f, Palette.Cream3))
+            BasicText(cur?.track?.artist.orEmpty(), style = body(s, if (estufa) 22f else 18f, lerp(Palette.Cream3, Palette.Ink2, estufaT)))
         }
 
         Picker(state, s, pickerT)
@@ -338,10 +354,11 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean) {
 }
 
 @Composable
-private fun Backdrop(url: String?) {
+private fun Backdrop(url: String?, plasterLevel: Int, estufaT: () -> Float) {
     val context = LocalContext.current
     var shown by remember { mutableStateOf<ImageBitmap?>(null) }
     var previous by remember { mutableStateOf<ImageBitmap?>(null) }
+    var plaster by remember { mutableStateOf<ImageBitmap?>(null) }
     val fade = remember { Animatable(1f) }
     LaunchedEffect(url) {
         val next = bakeBackdrop(context, url)
@@ -349,11 +366,16 @@ private fun Backdrop(url: String?) {
         fade.snapTo(0f); fade.animateTo(1f, tween(1800))
         previous = null
     }
+    LaunchedEffect(plasterLevel) { plaster = bakePlaster(plasterLevel) }
     Canvas(Modifier.fillMaxSize()) {
         val dst = IntSize(size.width.toInt(), size.height.toInt())
-        drawRect(Palette.Room)
-        previous?.let { drawImage(it, dstSize = dst, filterQuality = FilterQuality.Low) }
-        shown?.let { drawImage(it, dstSize = dst, alpha = fade.value, filterQuality = FilterQuality.Low) }
+        val e = estufaT()
+        if (e < 1f) {
+            drawRect(Palette.Room)
+            previous?.let { drawImage(it, dstSize = dst, filterQuality = FilterQuality.Low) }
+            shown?.let { drawImage(it, dstSize = dst, alpha = fade.value, filterQuality = FilterQuality.Low) }
+        }
+        if (e > 0f) plaster?.let { drawImage(it, dstSize = dst, alpha = e, filterQuality = FilterQuality.Low) }
     }
 }
 
