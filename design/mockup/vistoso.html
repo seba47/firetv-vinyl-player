@@ -100,22 +100,35 @@
     -webkit-mask: radial-gradient(circle, transparent 0 17%, #000 18% 98%, transparent 99%);
             mask: radial-gradient(circle, transparent 0 17%, #000 18% 98%, transparent 99%);
   }
-  #arm { position: absolute; left: 870px; top: 120px; transition: transform 900ms cubic-bezier(.45,.05,.25,1); }
-  #arm .pivot { position: absolute; left: -46px; top: -46px; width: 92px; height: 92px; border-radius: 50%;
-    background: radial-gradient(circle at 38% 35%, #e3bd85, var(--brass) 45%, #6b4c25 100%); box-shadow: 0 10px 18px rgb(0 0 0 / .55), inset 0 -4px 8px rgb(0 0 0 / .3); }
-  #arm .pivot::after { content: ""; position: absolute; inset: 26px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #3a342e, #1a1613); box-shadow: inset 0 2px 4px rgb(0 0 0 / .6); }
-  #arm .counterweight { position: absolute; left: -24px; top: -110px; width: 48px; height: 58px; border-radius: 10px;
-    background: linear-gradient(90deg, #2c2724, #4a433d 45%, #2a2522); box-shadow: 0 8px 14px rgb(0 0 0 / .5); }
-  #arm .tube { position: absolute; left: -7px; top: 0; width: 14px; height: 560px; border-radius: 7px; transform-origin: 7px 0; transform: rotate(14deg);
-    background: linear-gradient(90deg, #8f8a83, #e9e4dc 40%, #a7a199 70%, #6f6a64); box-shadow: 10px 16px 14px rgb(0 0 0 / .45); transition: box-shadow 600ms ease; }
-  #arm .head { position: absolute; left: -28px; bottom: -64px; width: 56px; height: 78px; border-radius: 8px 8px 12px 12px; transform: rotate(-22deg);
-    background: linear-gradient(90deg, #26211d, #48413b 50%, #26211d); box-shadow: 8px 12px 12px rgb(0 0 0 / .5); }
-  #arm .head::after { content: ""; position: absolute; right: -18px; top: 14px; width: 22px; height: 6px; border-radius: 3px; background: var(--brass); }
-  #arm.lifted .tube { box-shadow: 22px 34px 22px rgb(0 0 0 / .35); }
-  /* La púa aterriza: la sombra se achica de golpe con un rebote mínimo. */
-  #arm.land .tube { animation: land 520ms cubic-bezier(.3,1.5,.5,1); }
-  @keyframes land { 0% { box-shadow: 22px 34px 22px rgb(0 0 0 / .35); } 55% { box-shadow: 7px 11px 10px rgb(0 0 0 / .55); } 100% { box-shadow: 10px 16px 14px rgb(0 0 0 / .45); } }
-  #rest { position: absolute; left: 728px; top: 585px; width: 40px; height: 56px; border-radius: 8px;
+  /* Brazo: lo mueve un resorte en JS (giro y altura por separado), sin transiciones CSS.
+     Altura 0 = púa apoyada, 1 = levantado: escala apenas desde el pivote y la sombra se aleja. */
+  #arm { position: absolute; left: 870px; top: 120px; }
+  #arm .base { position: absolute; left: -54px; top: -54px; width: 108px; height: 108px; border-radius: 50%;
+    background: radial-gradient(circle, #1c1815 0 42%, #3f3833 45%, #1d1916 58%, #302a25 100%); box-shadow: 0 10px 18px rgb(0 0 0 / .55); }
+  #arm .lift { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform, filter; }
+  #arm .counterweight { position: absolute; left: -22px; top: -120px; width: 44px; height: 66px; border-radius: 8px;
+    background: repeating-linear-gradient(0deg, rgb(0 0 0 / .2) 0 2px, transparent 2px 6px), linear-gradient(90deg, #25201d, #5d554e 38%, #342e2a 70%, #1c1815); }
+  #arm .counterweight::after { content: ""; position: absolute; left: 6px; right: 6px; bottom: -14px; height: 16px; background: linear-gradient(90deg, #6f6a64, #d6d0c7, #6f6a64); }
+  #arm .tube { position: absolute; left: -6px; top: 0; width: 12px; height: 566px; border-radius: 6px; transform-origin: 6px 0; transform: rotate(14deg);
+    background: linear-gradient(90deg, #77726b, #f6f2eb 34%, #c3bdb4 52%, #8d8881 78%, #5c5752); }
+  #arm .head { position: absolute; left: -27px; top: 552px; width: 54px; height: 92px; transform: rotate(-22deg); transform-origin: 50% 0; }
+  #arm .shell { position: absolute; left: 0; right: 0; top: 0; height: 74px; clip-path: polygon(34% 0, 66% 0, 100% 100%, 0 100%);
+    background: linear-gradient(90deg, #8c867f, #ece7df 44%, #a69f97 70%, #6a655f); }
+  #arm .cart { position: absolute; left: 8px; right: 8px; top: 50px; height: 36px; border-radius: 3px 3px 5px 5px;
+    background: linear-gradient(180deg, #342e2a, #121010); box-shadow: inset 0 1px 0 rgb(255 255 255 / .08); }
+  #arm .cart::before { content: ""; position: absolute; left: 7px; right: 7px; top: 9px; height: 4px; border-radius: 2px; background: rgb(194 146 79 / .7); }
+  #arm .cart::after { content: ""; position: absolute; left: 50%; bottom: -7px; width: 2px; height: 9px; margin-left: -1px; border-radius: 1px; background: #e2dbcf; } /* púa */
+  #arm .finger { position: absolute; right: -24px; top: 34px; width: 30px; height: 5px; border-radius: 3px; transform: rotate(-14deg);
+    background: linear-gradient(90deg, #8c6a37, #e8c48d); }
+  #arm .pivot { position: absolute; left: -34px; top: -34px; width: 68px; height: 68px; border-radius: 50%;
+    background: radial-gradient(circle at 38% 32%, #f0d29f, var(--brass) 42%, #6b4c25 100%); box-shadow: inset 0 -3px 6px rgb(0 0 0 / .35), 0 4px 8px rgb(0 0 0 / .4); }
+  #arm .pivot::after { content: ""; position: absolute; inset: 20px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #48403a, #191512); }
+  /* Palanca de elevación (cue): sube cuando el brazo se levanta. */
+  #cue { position: absolute; left: 936px; top: 196px; width: 12px; height: 50px; border-radius: 6px; transform-origin: 6px 44px;
+    background: linear-gradient(90deg, #2a2522, #5f574f, #2a2522); box-shadow: 0 6px 8px rgb(0 0 0 / .45); }
+  #cue::before { content: ""; position: absolute; left: -5px; top: -12px; width: 22px; height: 16px; border-radius: 8px;
+    background: radial-gradient(circle at 40% 35%, #f0d29f, var(--brass) 55%, #6b4c25); }
+  #rest { position: absolute; left: 722px; top: 580px; width: 46px; height: 62px; border-radius: 10px 10px 8px 8px;
     background: linear-gradient(90deg, #2a2522, #4a433d, #2a2522); box-shadow: 0 8px 12px rgb(0 0 0 / .5); }
   #knob { position: absolute; left: 70px; bottom: 50px; width: 64px; height: 64px; border-radius: 50%;
     background: radial-gradient(circle at 40% 35%, #4a433d, #1f1b18); box-shadow: 0 6px 10px rgb(0 0 0 / .5); }
@@ -192,7 +205,7 @@
   .idle #deck { transform: translate(380px, -40px) scale(.94); }
   .idle #deck #plinth { animation: drift 40s ease-in-out infinite alternate; }
   @keyframes drift { from { translate: -30px 0; } to { translate: 30px -16px; } }
-  @media (prefers-reduced-motion: reduce) { #arm, #picker, .fade, #deck, #disc { transition: none; } .playing #platter, .idle #deck #plinth, #arm.land .tube { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { #picker, .fade, #deck, #disc { transition: none; } .playing #platter, .idle #deck #plinth { animation: none; } }
 </style>
 </head>
 <body>
@@ -205,7 +218,8 @@
         <div id="spindle"></div>
       </div>
       <div id="rest"></div>
-      <div id="arm"><div class="counterweight"></div><div class="tube"><div class="head"></div></div><div class="pivot"></div></div>
+      <div id="cue"></div>
+      <div id="arm"><div class="base"></div><div class="lift"><div class="counterweight"></div><div class="tube"><div class="head"><div class="shell"></div><div class="cart"></div><div class="finger"></div></div></div></div><div class="pivot"></div></div>
       <div id="knob"></div>
       <div id="rpm" class="engrave">33⅓ rpm</div>
       <div id="pilot"></div>
@@ -320,11 +334,28 @@
   }
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  const setArm = (deg, lifted) => {
-    const landing = arm.classList.contains("lifted") && !lifted;
-    arm.style.transform = `rotate(${deg}deg)`; arm.classList.toggle("lifted", lifted);
-    if (landing) { arm.classList.remove("land"); void arm.offsetWidth; arm.classList.add("land"); }
-  };
+  // Brazo con física simple: el giro es un resorte casi amortiguado (tiene inercia y se acomoda);
+  // la altura sube rápido y baja despacio, como la palanca hidráulica, con un rebotito al apoyar.
+  const ARM = { a: ARM_REST, v: 0, target: ARM_REST, h: 1, hv: 0, hTarget: 1 };
+  const lifter = arm.querySelector(".lift"), headEl = arm.querySelector(".head"), cue = $("cue");
+  const setArm = (deg, lifted) => { ARM.target = deg; ARM.hTarget = lifted ? 1 : 0; };
+  function stepArm(dt) {
+    const k = 16, c = 2 * Math.sqrt(k) * .78;
+    ARM.v += ((ARM.target - ARM.a) * k - ARM.v * c) * dt; ARM.a += ARM.v * dt;
+    const down = ARM.hTarget < ARM.h;
+    const kh = down ? 7 : 45, ch = 2 * Math.sqrt(kh) * (down ? .62 : 1);
+    ARM.hv += ((ARM.hTarget - ARM.h) * kh - ARM.hv * ch) * dt; ARM.h += ARM.hv * dt;
+    const h = Math.max(-.04, Math.min(1.05, ARM.h));
+    const onRecord = h < .03 && playing;
+    // apoyado sobre el disco, el brazo copia el alabeo del vinilo
+    const warp = onRecord ? Math.sin(angle * Math.PI / 180) * .07 : 0;
+    const bob = onRecord ? Math.sin(angle * Math.PI / 90) * .6 : 0;
+    arm.style.transform = `rotate(${(ARM.a + warp).toFixed(3)}deg)`;
+    lifter.style.transform = `scale(${(1 + .028 * h).toFixed(4)})`;
+    lifter.style.filter = `drop-shadow(${(9 + 16 * h).toFixed(1)}px ${(13 + 30 * h).toFixed(1)}px ${(7 + 14 * h).toFixed(1)}px rgb(0 0 0 / ${(.55 - .2 * h).toFixed(2)}))`;
+    headEl.style.translate = `0 ${bob.toFixed(2)}px`;
+    cue.style.transform = `rotate(${(-42 * Math.max(0, Math.min(1, ARM.hTarget ? h : h))).toFixed(1)}deg)`;
+  }
   // Dos capas que se funden: la tapa nueva aparece mientras la anterior se apaga.
   let ambientTop = 0, ambientUrl = "";
   function setAmbient(url) {
@@ -338,7 +369,9 @@
 
   async function change(update) {
     if (changing) return; changing = true; playing = false;
-    setArm(ARM_REST + 2, true); fades(true);
+    setArm(ARM.target, true); fades(true);           // 1) levanta en el lugar
+    await sleep(380);
+    setArm(ARM_REST + 1.5, true);                     // 2) vuelve hacia el apoyabrazo
     await sleep(700);
     const before = cur() && cur().id;
     update(); topUp(); pos = 0;
@@ -347,8 +380,10 @@
       render(); $("disc").classList.remove("away"); await sleep(380);
     } else render();
     fades(false);
-    await sleep(300); setArm(ARM_START, true);
-    await sleep(950); setArm(ARM_START, false);
+    setArm(ARM_START, true);                          // 3) viaja al borde del disco
+    await sleep(1250);
+    setArm(ARM_START, false);                         // 4) baja despacio y apoya
+    await sleep(700);
     stage.classList.remove("paused"); playing = true; changing = false; stage.classList.add("playing");
   }
   const next = () => change(() => { idx++; });
@@ -410,6 +445,7 @@
     angle = (angle + speed * dt) % 360;
     record.style.transform = `rotate(${angle}deg)`;
     sheen.style.opacity = (.8 + .2 * Math.sin(angle * Math.PI / 90)).toFixed(3);   // el brillo titila con los surcos
+    stepArm(dt);
     if (playing && !changing) {
       pos += dt * 6;   // mockup: el tiempo corre 6x
       if (pos >= cur().len) next(); else setArm(ARM_START + (ARM_END - ARM_START) * (pos / cur().len), false);
