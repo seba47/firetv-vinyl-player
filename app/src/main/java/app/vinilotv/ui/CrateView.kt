@@ -63,10 +63,12 @@ import kotlin.random.Random
 // Se revuelve hacia adelante (← →): el de adelante se vuelca hacia uno y aparece el siguiente.
 // Todo lo dibujado (madera, fundas, cartón) se pinta una vez; por cuadro solo se mueve.
 
+// Medidas de diseño de la caja (los dibujos usan estas); en pantalla todo va escalado por SCALE.
+private const val SCALE = 1.25f                         // discos +25 % (se ven mejor desde el sillón)
 private const val CRATE_W = 760f
 private const val CRATE_H = 420f
-private const val CRATE_X = 960f - CRATE_W / 2f        // en unidades de 1920x1080
-private const val CRATE_Y = 1080f - CRATE_H
+private const val CRATE_X = 960f - CRATE_W * SCALE / 2f        // en unidades de 1920x1080
+private const val CRATE_Y = 1080f - CRATE_H * SCALE
 private const val FRONT_H = 160f
 private const val SLEEVE = 300f
 private const val DIVIDER_H = 316f
@@ -87,8 +89,8 @@ internal fun CrateView(open: Boolean, items: List<CrateItem>, index: Int, pickin
 
     Box(Modifier.fillMaxSize().graphicsLayer { translationY = (1f - openT) * 470f * k }) {
         // fondo del cajón (postes y el hueco oscuro), atrás de los discos
-        Box(Modifier.place(s, CRATE_X, CRATE_Y, CRATE_W, CRATE_H).zIndex(0f).drawWithCache {
-            val img = bakeCrateBack(k)
+        Box(Modifier.place(s, CRATE_X, CRATE_Y, CRATE_W * SCALE, CRATE_H * SCALE).zIndex(0f).drawWithCache {
+            val img = bakeCrateBack(k * SCALE)
             onDrawBehind { drawImage(img) }
         })
         // discos: solo los que se ven (dos volcados adelante y siete atrás)
@@ -99,25 +101,25 @@ internal fun CrateView(open: Boolean, items: List<CrateItem>, index: Int, pickin
             val h = if (item is CrateItem.Divider) DIVIDER_H else SLEEVE
             val key = sleeveKey(item)
             val img by produceState(cache[key], key) {
-                value = cache[key] ?: bakeSleeveFor(context, item, (SLEEVE * k).toInt(), (h * k).toInt())?.also { cache[key] = it }
+                value = cache[key] ?: bakeSleeveFor(context, item, (SLEEVE * SCALE * k).toInt(), (h * SCALE * k).toInt())?.also { cache[key] = it }
             }
             val d = i - cursor
             val tilt = (abs(key.hashCode()) % 25 - 12) / 10f                 // cada funda apenas torcida
             Box(
-                Modifier.place(s, 960f - SLEEVE / 2f, 1080f - 60f - h, SLEEVE, h)
+                Modifier.place(s, 960f - SLEEVE * SCALE / 2f, 1080f - (60f + h) * SCALE, SLEEVE * SCALE, h * SCALE)
                     .zIndex(100f - d)
                     .graphicsLayer {
                         transformOrigin = TransformOrigin(.5f, 1f)
                         cameraDistance = 14f * density
                         if (d >= 0f) {
-                            translationY = -22f * d * k
+                            translationY = -22f * SCALE * d * k
                             val sc = 1f - .03f * d
                             scaleX = sc; scaleY = sc
                             rotationX = -6f * (1f - min(d, 1f))
-                            alpha = (8f - d).coerceIn(0f, 1f)
+                            alpha = (6f - d).coerceIn(0f, 1f)                   // se ven hasta 5 atrás
                         } else {
                             val t = min(-d, 1f)
-                            translationY = 160f * t * k
+                            translationY = 160f * SCALE * t * k
                             rotationX = -6f - 72f * t
                             scaleX = 1f - .04f * t; scaleY = scaleX
                             alpha = .92f * (1f - (-d - 1f).coerceIn(0f, 1f))
@@ -139,14 +141,14 @@ internal fun CrateView(open: Boolean, items: List<CrateItem>, index: Int, pickin
             }
         }
         // frente del cajón, adelante de todo
-        Box(Modifier.place(s, CRATE_X, 1080f - FRONT_H, CRATE_W, FRONT_H).zIndex(300f).drawWithCache {
-            val img = bakeCrateFront(context, k)
+        Box(Modifier.place(s, CRATE_X, 1080f - FRONT_H * SCALE, CRATE_W * SCALE, FRONT_H * SCALE).zIndex(300f).drawWithCache {
+            val img = bakeCrateFront(context, k * SCALE)
             onDrawBehind { drawImage(img) }
         })
         // qué disco está en foco, a la derecha del cajón
         val cur = items.getOrNull(index)
         val ink = { a: Color, b: Color -> lerp(a, b, estufaT) }
-        Column(Modifier.place(s, CRATE_X + CRATE_W + 44f, 1080f - 330f, 480f, 300f).zIndex(310f).graphicsLayer { alpha = openT * (1f - pickT) }) {
+        Column(Modifier.place(s, CRATE_X + CRATE_W * SCALE + 34f, 1080f - 370f, 420f, 320f).zIndex(310f).graphicsLayer { alpha = openT * (1f - pickT) }) {
             val (kind, title, sub) = when (cur) {
                 is CrateItem.Record -> Triple(if (cur.recent) "Lo último que sonó · ${cur.seed.kind.label}" else cur.seed.kind.label, cur.seed.title, cur.seed.subtitle)
                 is CrateItem.Divider -> Triple("Separador", cur.text, cur.note ?: "Seguí revolviendo")

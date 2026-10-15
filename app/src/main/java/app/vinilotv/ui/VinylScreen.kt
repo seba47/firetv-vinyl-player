@@ -239,8 +239,8 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean, look: App
                 val ty = (-78f + 42f * estufaT) * centerT
                 val sc = 1f - (.08f + .12f * estufaT) * centerT
                 translationX = (tx + (380f - tx) * crateT) * k
-                translationY = (ty + (-262f - ty) * crateT) * k
-                scaleX = sc + (.5f - sc) * crateT; scaleY = scaleX
+                translationY = (ty + (-292f - ty) * crateT) * k
+                scaleX = sc + (.47f - sc) * crateT; scaleY = scaleX
             },
         ) {
             Box(
