@@ -157,6 +157,7 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean, look: App
         val shadows = remember { bakeArmShadows() }
         val current by rememberUpdatedState(state.current)
         val playing by rememberUpdatedState(state.playing && !state.loading)
+        val animated by rememberUpdatedState(look.animated)                 // modo quieto: el disco no gira
         var labelUrl by remember { mutableStateOf<String?>(null) }
         var label by remember { mutableStateOf<ImageBitmap?>(null) }
         val context = LocalContext.current
@@ -178,7 +179,7 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean, look: App
                     motion.armTarget = if (current == null) ARM_REST else progressAngle(current, motion.positionMs, motion.durationMs)
                     motion.liftTarget = if (playing) 0f else 1f        // en pausa el brazo se levanta
                 }
-                motion.step(dt, playing && motion.lift < .5f)
+                motion.step(dt, animated && playing && motion.lift < .5f)
             }
         }
 
@@ -261,7 +262,7 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean, look: App
                         // vuelta: 0→90° y después -90→0° (así la etiqueta nueva no queda espejada)
                         val flipY = if (f < .5f) 180f * f else 180f * f - 180f
                         // alabeo: el disco se ondula apenas con cada vuelta
-                        val w = if (Touches.WARP) (motion.speed / 200f) else 0f
+                        val w = if (Touches.WARP && animated) (motion.speed / 200f) else 0f
                         val ang = motion.recordAngle * PI.toFloat() / 180f
                         rotationX = .55f * w * sin(ang)
                         rotationY = flipY + .35f * w * cos(ang)
@@ -288,7 +289,7 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean, look: App
                     drawArm(
                         angle = motion.armAngle + if (onRecord) sin(a) * .07f else 0f,
                         lift = motion.lift,
-                        bob = if (!onRecord) 0f else if (Touches.WARP) sin(a) * 1.4f else sin(a * 2f) * .6f,
+                        bob = if (!onRecord || !animated) 0f else if (Touches.WARP) sin(a) * 1.4f else sin(a * 2f) * .6f,
                         shadows = shadows,
                     )
                 }
@@ -297,7 +298,7 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean, look: App
         }
 
         // Polvo en el aire y haz de luz (encima del tocadiscos, debajo del texto)
-        DustAndLight({ motion.time }, k, Modifier.graphicsLayer { alpha = 1f - estufaT })   // sobre el yeso no se ve
+        if (look.animated) DustAndLight({ motion.time }, k, Modifier.graphicsLayer { alpha = 1f - estufaT })   // sobre el yeso no se ve
 
         // Columna de lectura
         Column(

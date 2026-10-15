@@ -16,6 +16,7 @@ import org.schabi.newpipe.extractor.localization.Localization
 import org.schabi.newpipe.extractor.playlist.PlaylistInfo
 import org.schabi.newpipe.extractor.playlist.PlaylistInfoItem
 import org.schabi.newpipe.extractor.search.SearchInfo
+import org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamExtractor
 import org.schabi.newpipe.extractor.services.youtube.linkHandler.YoutubeSearchQueryHandlerFactory
 import org.schabi.newpipe.extractor.stream.AudioStream
 import org.schabi.newpipe.extractor.stream.DeliveryMethod
@@ -125,14 +126,31 @@ object YouTube {
         return info.relatedItems.mapNotNull { it.toTrack(null) }.filter { it.videoId != videoId }
     }
 
-    /** Resuelve la mejor pista de audio directa (prefiere Opus, si no AAC). */
+    /**
+     * Resuelve la mejor pista de audio directa (prefiere Opus, si no AAC).
+     * Los videos "hechos para niños" (p. ej. Pim Pau) no traen pistas de audio con el cliente de
+     * siempre: se vuelven a pedir como el cliente de iOS, y si tampoco, se usa el video combinado de
+     * 360p (el reproductor ignora la imagen y solo suena el audio).
+     */
     fun resolve(track: Track): ResolvedTrack {
         init()
-        val info = StreamInfo.getInfo(service, track.url)
-        val best = info.audioStreams
-            .filter { it.isUrl && it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }
-            .maxWithOrNull(compareBy<AudioStream>({ it.isOriginalTrack() }, { it.format == MediaFormat.WEBMA_OPUS }, { it.averageBitrate }))
-            ?: error("Sin audio directo para ${track.url} (streams: ${info.audioStreams.size})")
+        var info = StreamInfo.getInfo(service, track.url)
+        var best = bestAudio(info)
+        if (best == null) {
+            info = withIosClient { StreamInfo.getInfo(service, track.url) }
+            best = bestAudio(info)
+        }
+        val content: String
+        val format: String
+        val bitrate: Int
+        if (best != null) {
+            content = best.content; format = best.format?.getName() ?: "?"; bitrate = best.averageBitrate
+        } else {
+            val muxed = info.videoStreams.filter { it.isUrl && it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }
+                .minByOrNull { it.resolution.filter(Char::isDigit).toIntOrNull() ?: Int.MAX_VALUE }
+                ?: error("Sin audio para ${track.url} (audio: ${info.audioStreams.size}, video: ${info.videoStreams.size})")
+            content = muxed.content; format = "${muxed.format?.getName()} (video ${muxed.resolution}, solo audio)"; bitrate = 0
+        }
         return ResolvedTrack(
             track = track.copy(
                 title = tidy(info.name, cleanArtist(info.uploaderName)).first,
@@ -140,10 +158,22 @@ object YouTube {
                 durationSec = info.duration,
                 thumbnailUrl = track.thumbnailUrl ?: info.thumbnails.best(),
             ),
-            audioUrl = best.content,
-            format = best.format?.getName() ?: "?",
-            bitrateKbps = best.averageBitrate,
+            audioUrl = content,
+            format = format,
+            bitrateKbps = bitrate,
         )
+    }
+
+    private fun bestAudio(info: StreamInfo): AudioStream? = info.audioStreams
+        .filter { it.isUrl && it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }
+        .maxWithOrNull(compareBy<AudioStream>({ it.isOriginalTrack() }, { it.format == MediaFormat.WEBMA_OPUS }, { it.averageBitrate }))
+
+    private val iosLock = Any()
+
+    /** La opción del cliente de iOS es global en NewPipeExtractor: se prende solo para este pedido. */
+    private fun <T> withIosClient(block: () -> T): T = synchronized(iosLock) {
+        YoutubeStreamExtractor.setFetchIosClient(true)
+        try { block() } finally { YoutubeStreamExtractor.setFetchIosClient(false) }
     }
 
     fun videoIdOf(url: String): String? = Regex("[?&]v=([A-Za-z0-9_-]{11})").find(url)?.groupValues?.get(1)

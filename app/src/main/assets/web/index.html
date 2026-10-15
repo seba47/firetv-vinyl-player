@@ -147,7 +147,12 @@
   </section>
 
   <section id="look" aria-labelledby="look-title">
-    <h2 class="section engrave" id="look-title">Fondo de la tele</h2>
+    <h2 class="section engrave" id="look-title">Pantalla de la tele</h2>
+    <div class="row" role="group" aria-label="Movimiento">
+      <button id="anim-on" data-anim="1" aria-pressed="true"><span class="sw" style="background:radial-gradient(circle,#111 0 30%,#c2924f 31% 38%,#111 39%)"></span>Animado</button>
+      <button id="anim-off" data-anim="0" aria-pressed="false"><span class="sw" style="background:#2a2019"></span>Quieto</button>
+    </div>
+    <p class="note" style="text-align:left;padding:0;font-size:13px">“Quieto” frena el disco y todo lo que se mueve; la música sigue igual.</p>
     <div class="row">
       <button id="wall-living" data-wall="LIVING" aria-pressed="true"><span class="sw living"></span>Living</button>
       <button id="wall-estufa" data-wall="ESTUFA" aria-pressed="false"><span class="sw estufa"></span>Estufa de yeso</button>
@@ -292,10 +297,11 @@
   });
 
   // Fondo de la tele
-  let look = { wall: "LIVING", plaster: 78, edgeTop: 233, edgeBottom: 420 }, lookDirty = 0;
+  let look = { wall: "LIVING", plaster: 78, edgeTop: 233, edgeBottom: 420, animated: true }, lookDirty = 0;
   const SLIDERS = { plaster: v => v + "%", edgeTop: v => (v / 10).toFixed(1) + "%", edgeBottom: v => (v / 10).toFixed(1) + "%" };
   function showLook() {
-    document.querySelectorAll("#look .row button").forEach(b => b.setAttribute("aria-pressed", b.dataset.wall === look.wall));
+    document.querySelectorAll("#look .row button[data-wall]").forEach(b => b.setAttribute("aria-pressed", b.dataset.wall === look.wall));
+    document.querySelectorAll("#look .row button[data-anim]").forEach(b => b.setAttribute("aria-pressed", (b.dataset.anim === "1") === look.animated));
     $("estufa-opts").hidden = look.wall !== "ESTUFA";
     $("estufa-opts").style.display = look.wall === "ESTUFA" ? "grid" : "none";
     Object.entries(SLIDERS).forEach(([k, fmt]) => { $(k).value = look[k]; $(k + "-v").textContent = fmt(look[k]); });
@@ -305,7 +311,8 @@
     try { await fetch("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(change) }); }
     catch { toast("No llego a la tele"); }
   }
-  document.querySelectorAll("#look .row button").forEach(b => b.addEventListener("click", () => sendLook({ wall: b.dataset.wall })));
+  document.querySelectorAll("#look .row button[data-wall]").forEach(b => b.addEventListener("click", () => sendLook({ wall: b.dataset.wall })));
+  document.querySelectorAll("#look .row button[data-anim]").forEach(b => b.addEventListener("click", () => sendLook({ animated: b.dataset.anim === "1" })));
   let sliderTimer;
   Object.entries(SLIDERS).forEach(([k, fmt]) => $(k).addEventListener("input", e => {
     look[k] = +e.target.value; $(k + "-v").textContent = fmt(look[k]); lookDirty = Date.now();

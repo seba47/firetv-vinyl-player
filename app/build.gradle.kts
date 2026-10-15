@@ -56,6 +56,7 @@ dependencies {
 tasks.withType<Test>().configureEach {
     // scripts/smoke-test.sh pasa la búsqueda con -Pquery="..."
     systemProperty("vinilo.query", providers.gradleProperty("query").getOrElse(""))
+    systemProperty("vinilo.url", providers.gradleProperty("url").getOrElse(""))
     testLogging {
         showStandardStreams = true
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL

@@ -19,7 +19,7 @@ import java.net.Inet4Address
  *   POST /api/crate/add     {kind,title,subtitle,url,thumb}: lo guarda en la caja de discos
  *   POST /api/crate/remove  {url}      POST /api/crate/move {url, delta}
  *   POST /api/next, /api/toggle
- *   POST /api/settings      {wall: LIVING|ESTUFA, plaster: 40..95, edgeTop, edgeBottom}: fondo de la tele
+ *   POST /api/settings      {wall: LIVING|ESTUFA, plaster: 40..95, edgeTop, edgeBottom, animated}: pantalla de la tele
  * Cualquiera en el mismo WiFi puede usarla (igual que el control remoto).
  */
 class WebServer private constructor(private val context: Context, port: Int) : NanoHTTPD(port) {
@@ -50,7 +50,8 @@ class WebServer private constructor(private val context: Context, port: Int) : N
                 val o = JSONObject(body(session))
                 val wall = o.optString("wall").takeIf { it.isNotEmpty() }?.let { runCatching { Wall.valueOf(it) }.getOrNull() }
                 fun int(k: String) = if (o.has(k)) o.getInt(k) else null
-                main.post { Settings.update(wall, int("plaster"), int("edgeTop"), int("edgeBottom")) }
+                val animated = if (o.has("animated")) o.getBoolean("animated") else null
+                main.post { Settings.update(wall, int("plaster"), int("edgeTop"), int("edgeBottom"), animated) }
                 json(JSONObject().put("ok", true))
             }
             path == "/api/crate/add" && session.method == Method.POST -> {

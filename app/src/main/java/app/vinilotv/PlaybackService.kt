@@ -37,6 +37,10 @@ class PlaybackService : MediaSessionService() {
             )
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
+        // Nunca se muestra video: si algún tema viene como video combinado (p. ej. "hechos para
+        // niños"), solo se decodifica el audio.
+        exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true).build()
         Radio.attach(this, exo)
 
         // "Siguiente" desde la sesión (Alexa, notificación) lo resuelve la radio, aunque el

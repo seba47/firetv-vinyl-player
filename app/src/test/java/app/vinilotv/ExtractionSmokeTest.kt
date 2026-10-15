@@ -64,6 +64,21 @@ class ExtractionSmokeTest {
         assertTrue(tracks.isNotEmpty())
     }
 
+    /** scripts/probar-disco.sh <url>: abre un disco/playlist y prueba resolver sus primeros temas. */
+    @Test
+    fun specificAlbum() {
+        val url = System.getProperty("vinilo.url")?.takeIf { it.isNotBlank() } ?: return
+        val tracks = YouTube.playlistTracks(url)
+        println("Disco $url: ${tracks.size} temas")
+        var ok = 0
+        tracks.take(4).forEach { t ->
+            val r = runCatching { YouTube.resolve(t) }
+            r.onSuccess { ok++; println("  ✓ ${t.title} — ${it.format} ${it.bitrateKbps} kbps") }
+            r.onFailure { println("  ✗ ${t.title} (${t.videoId}): ${it.javaClass.simpleName}: ${it.message}") }
+        }
+        assertTrue("No se pudo resolver ningún tema", ok > 0)
+    }
+
     @Test
     fun mixForEndlessRadio() {
         val seed = YouTube.searchSongs(query).first()

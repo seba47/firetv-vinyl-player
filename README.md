@@ -20,6 +20,8 @@ Sin servidor propio. Uso personal, sideload.
 - **Fondo de la tele** (desde la página del celular): *Living* (oscuro, con la luz de la tapa; por
   defecto) o *Estufa de yeso* (pared blanca con el relieve de la estufa donde está colgada la tele,
   tocadiscos centrado), con brillo del yeso ajustable para que de noche no encandile.
+- **Animado / Quieto** (también desde el celular): "Quieto" frena el disco y todo lo que se mueve; la
+  música sigue igual. Para tenerlo de fondo sin que llame la atención (p. ej. con chicos).
 - Toques visuales (polvo, haz de luz —apagado—, alabeo del vinilo, cambio de lado A/B en los discos): cada uno
   se apaga con su llave en `app/src/main/java/app/vinilotv/ui/Touches.kt` y `scripts/install.sh`.
 
@@ -27,6 +29,7 @@ Sin servidor propio. Uso personal, sideload.
 
 ```bash
 scripts/smoke-test.sh "Soda Stereo"          # ¿NewPipeExtractor anda? (desde la Mac, sin tele)
+scripts/probar-disco.sh "<url del disco>"    # ¿por qué no suena tal disco? (resuelve sus primeros temas)
 scripts/firetv-connect.sh 192.168.x.y        # una vez: conecta adb al Fire TV (guarda la IP en .firetv)
 scripts/install.sh "Cerati Crimen"           # compila, instala y abre buscando eso
 scripts/play.sh "Spinetta"                   # cambia lo que suena sin reinstalar
@@ -46,7 +49,8 @@ scripts/mockup.sh                            # mockups de diseño: http://localh
 | Mockups de diseño | `design/mockup/` |
 
 Las URLs de audio de YouTube vencen (~6 h) y quedan atadas a la IP: cada tema se resuelve justo antes
-de sonar. Tipografías: Young Serif, Familjen Grotesk y Big Shoulders Text (OFL, `docs/licencias/`).
+de sonar. Los videos "hechos para niños" (p. ej. Pim Pau) no traen audio con el cliente de siempre: se
+piden como el cliente de iOS y, si tampoco, se usa el video combinado sin imagen. Tipografías: Young Serif, Familjen Grotesk y Big Shoulders Text (OFL, `docs/licencias/`).
 
 ## Docs
 
