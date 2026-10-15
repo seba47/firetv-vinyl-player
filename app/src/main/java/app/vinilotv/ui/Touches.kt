@@ -30,8 +30,11 @@ import kotlin.random.Random
  * (scripts/install.sh). Todos son baratos para la GPU del Fire TV (ver docs/rendimiento.md).
  */
 object Touches {
-    /** Motas de polvo flotando y un haz de luz cálida que barre el tocadiscos cada tanto. */
-    const val DUST_AND_LIGHT = true
+    /** Motas de polvo flotando sobre el tocadiscos. */
+    const val DUST = true
+
+    /** Haz de luz cálida que barre la pantalla cada tanto (apagado: molestaba el reflejo). */
+    const val LIGHT_BEAM = false
 
     /** El vinilo se ondula apenas al girar (alabeo) y la púa lo acompaña. */
     const val WARP = true
@@ -94,7 +97,7 @@ private fun bakeBeam(): ImageBitmap {
 /** Polvo en el aire y, cada tanto, un haz de luz que cruza el tocadiscos. [time] en segundos. */
 @Composable
 fun DustAndLight(time: () -> Float, k: Float, modifier: Modifier = Modifier) {
-    if (!Touches.DUST_AND_LIGHT) return
+    if (!Touches.DUST && !Touches.LIGHT_BEAM) return
     val beam = remember { bakeBeam() }
     val motes = remember { Random(11).let { rnd -> List(26) { Mote(rnd) } } }
     val cosA = cos(BEAM_ANGLE * PI.toFloat() / 180f)
@@ -103,7 +106,7 @@ fun DustAndLight(time: () -> Float, k: Float, modifier: Modifier = Modifier) {
         val t = time()
         val cycle = t % BEAM_PERIOD
         val pass = cycle / BEAM_CROSS
-        val beamOn = pass < 1f
+        val beamOn = Touches.LIGHT_BEAM && pass < 1f
         val beamX = -300f + 1700f * pass.coerceAtMost(1f)
         val beamA = if (beamOn) sin(PI.toFloat() * pass) else 0f
         scale(k, k, Offset.Zero) {
@@ -112,7 +115,7 @@ fun DustAndLight(time: () -> Float, k: Float, modifier: Modifier = Modifier) {
                     drawImage(beam, Offset(beamX - 150f, 540f - 850f), alpha = beamA)
                 }
             }
-            for (m in motes) {
+            if (Touches.DUST) for (m in motes) {
                 val x = wrap(m.x + m.vx * t + 6f * sin(t * .3f + m.phase), 100f, 1120f)
                 val y = wrap(m.y + m.vy * t, 120f, 1010f)
                 val d = abs((x - beamX) * cosA + (y - 540f) * sinA)
