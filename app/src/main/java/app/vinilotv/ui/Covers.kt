@@ -97,6 +97,17 @@ private fun drawSideMark(canvas: Canvas, px: Int, side: Char) {
     canvas.drawText(side.toString(), cx, cy - (text.ascent() + text.descent()) / 2f, text)
 }
 
+/** Sombra del tocadiscos colgado sobre la pared, ya desenfocada (en unidades del gabinete + margen). */
+const val DECK_SHADOW_PAD = 90f
+fun bakeDeckShadow(k: Float): ImageBitmap {
+    val w = 1000f + 2 * DECK_SHADOW_PAD; val h = 860f + 2 * DECK_SHADOW_PAD
+    val out = Bitmap.createBitmap((w * k).toInt().coerceAtLeast(1), (h * k).toInt().coerceAtLeast(1), Bitmap.Config.ALPHA_8)
+    val c = Canvas(out); c.scale(k, k)
+    c.drawRoundRect(RectF(DECK_SHADOW_PAD + 8f, DECK_SHADOW_PAD, w - DECK_SHADOW_PAD - 8f, h - DECK_SHADOW_PAD), 20f, 20f,
+        Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x66000000; maskFilter = android.graphics.BlurMaskFilter(44f, android.graphics.BlurMaskFilter.Blur.NORMAL) })
+    return out.asImageBitmap()
+}
+
 // Centro de la columna de la estufa en la pantalla (fracción del ancho), medido en una foto de frente.
 // El ancho de la cara arriba y abajo se ajusta desde el celular (Settings.edgeTop/edgeBottom).
 const val ESTUFA_CENTER = .4985f
@@ -152,12 +163,7 @@ suspend fun bakePlaster(level: Int, edgeTop: Int, edgeBottom: Int): ImageBitmap 
     }
     c.drawLine(topR, 0f, botR, h.toFloat(), edge)
     c.drawLine(topL, 0f, botL, h.toFloat(), edge.apply { color = 0x14000000 })
-    // sombra del tocadiscos colgado sobre la pared (gabinete de frente en ~560..1360 x 170..858 de
-    // 1920x1080): separado unos centímetros del yeso, la sombra cae hacia abajo
-    c.drawRoundRect(RectF(284f, 104f, 676f, 452f), 14f, 14f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0x5A2A1C12
-        maskFilter = android.graphics.BlurMaskFilter(26f, android.graphics.BlurMaskFilter.Blur.NORMAL)
-    })
+    // (la sombra del tocadiscos no va pintada en la pared: la dibuja el tocadiscos y lo sigue)
     out.asImageBitmap()
 }
 

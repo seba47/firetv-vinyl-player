@@ -243,6 +243,14 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean, look: App
                 scaleX = sc + (.47f - sc) * crateT; scaleY = scaleX
             },
         ) {
+            // sombra del tocadiscos colgado sobre el yeso: va con el tocadiscos (si sube con la caja, la sombra también)
+            if (estufaT > 0f) Box(
+                Modifier.fillMaxSize().graphicsLayer { alpha = estufaT; translationY = 34f * k }.drawWithCache {
+                    val img = bakeDeckShadow(k)
+                    val warm = androidx.compose.ui.graphics.ColorFilter.tint(Color(0xFF2A1C12))
+                    onDrawBehind { drawImage(img, topLeft = Offset(-DECK_SHADOW_PAD * k, -DECK_SHADOW_PAD * k), colorFilter = warm) }
+                },
+            )
             Box(
                 Modifier.fillMaxSize().graphicsLayer {
                     rotationX = 24f * (1f - estufaT)          // con la estufa queda colgado: de frente

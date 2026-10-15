@@ -65,7 +65,7 @@ import kotlin.random.Random
 
 // Medidas de diseño de la caja (los dibujos usan estas); en pantalla todo va escalado por SCALE.
 private const val SCALE = 1.25f                         // discos +25 % (se ven mejor desde el sillón)
-private const val CRATE_W = 760f
+private const val CRATE_W = 540f                       // angosto: acompaña a los discos (675 px en pantalla)
 private const val CRATE_H = 420f
 private const val CRATE_X = 960f - CRATE_W * SCALE / 2f        // en unidades de 1920x1080
 private const val CRATE_Y = 1080f - CRATE_H * SCALE
@@ -148,7 +148,8 @@ internal fun CrateView(open: Boolean, items: List<CrateItem>, index: Int, pickin
         // qué disco está en foco, a la derecha del cajón
         val cur = items.getOrNull(index)
         val ink = { a: Color, b: Color -> lerp(a, b, estufaT) }
-        Column(Modifier.place(s, CRATE_X + CRATE_W * SCALE + 34f, 1080f - 370f, 420f, 320f).zIndex(310f).graphicsLayer { alpha = openT * (1f - pickT) }) {
+        // pegado a la caja y angosto, para que quede dentro de la cara de la estufa
+        Column(Modifier.place(s, CRATE_X + CRATE_W * SCALE + 26f, 1080f - 372f, 300f, 330f).zIndex(310f).graphicsLayer { alpha = openT * (1f - pickT) }) {
             val (kind, title, sub) = when (cur) {
                 is CrateItem.Record -> Triple(if (cur.recent) "Lo último que sonó · ${cur.seed.kind.label}" else cur.seed.kind.label, cur.seed.title, cur.seed.subtitle)
                 is CrateItem.Divider -> Triple("Separador", cur.text, cur.note ?: "Seguí revolviendo")
@@ -159,13 +160,13 @@ internal fun CrateView(open: Boolean, items: List<CrateItem>, index: Int, pickin
                 fontSize = s.sp(17f), letterSpacing = androidx.compose.ui.unit.TextUnit(.24f, androidx.compose.ui.unit.TextUnitType.Em), color = ink(Palette.Brass, Palette.InkBrass)))
             Spacer(Modifier.height(s.dp(8f)))
             BasicText(title, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                style = TextStyle(fontFamily = Fonts.Display, fontSize = s.sp(40f), lineHeight = s.sp(44f), color = ink(Palette.Cream, Palette.Ink)))
+                style = TextStyle(fontFamily = Fonts.Display, fontSize = s.sp(36f), lineHeight = s.sp(40f), color = ink(Palette.Cream, Palette.Ink)))
             Spacer(Modifier.height(s.dp(6f)))
             BasicText(sub, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 style = TextStyle(fontFamily = Fonts.Body, fontSize = s.sp(20f), color = ink(Palette.Cream2, Palette.Ink2)))
             Spacer(Modifier.height(s.dp(12f)))
-            val hint = if (cur is CrateItem.Divider) "← → revolver · Atrás cierra" else "OK lo pone · ← → revolver · Atrás cierra"
-            BasicText(hint, style = TextStyle(fontFamily = Fonts.Body, fontSize = s.sp(17f), color = ink(Palette.Cream3, Palette.Ink2)))
+            val hint = if (cur is CrateItem.Divider) "← → revolver\nAtrás cierra" else "OK lo pone · ← → revolver\nAtrás cierra"
+            BasicText(hint, maxLines = 2, style = TextStyle(fontFamily = Fonts.Body, fontSize = s.sp(17f), lineHeight = s.sp(24f), color = ink(Palette.Cream3, Palette.Ink2)))
         }
     }
 }
