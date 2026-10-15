@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vinilo TV — mockup</title>
+<!--
+  Mockup de la pantalla del tocadiscos (fase 2). Escenario fijo de 1920x1080 (lo que dibuja el
+  Fire TV a 1080p) escalado a la ventana. Teclado = control remoto:
+    →  siguiente tema      Enter/Espacio  pausa      ↑ / ↓  cambiar de estación
+  Las tapas son las miniaturas de YouTube Music (tapa cuadrada centrada en un 16:9).
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #1d1814;          /* grafito cálido */
+    --walnut-1: #5a3a24;    /* nogal */
+    --walnut-2: #432a19;
+    --walnut-3: #2f1d11;
+    --cream: #ede3d1;
+    --cream-dim: rgba(237, 227, 209, 0.62);
+    --cream-faint: rgba(237, 227, 209, 0.32);
+    --brass: #b8894a;
+    --brass-light: #d9b27a;
+    --vinyl: #121010;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #000; overflow: hidden; }
+  body { font-family: Inter, system-ui, sans-serif; color: var(--cream); }
+
+  /* Escenario de tele 1920x1080, escalado por JS para que entre en la ventana. */
+  #stage {
+    position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px;
+    transform-origin: 0 0;
+    background:
+      radial-gradient(ellipse 70% 80% at 38% 55%, rgba(120, 80, 45, 0.18), transparent 70%),
+      radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%),
+      var(--bg);
+    overflow: hidden;
+  }
+
+  /* ---------- Tocadiscos ---------- */
+  #deck {
+    position: absolute; left: 90px; top: 110px; width: 1000px; height: 860px;
+    perspective: 1800px; perspective-origin: 50% -20%;
+  }
+  #plinth {
+    position: absolute; inset: 0;
+    transform: rotateX(24deg); transform-origin: 50% 100%;
+    border-radius: 22px;
+    background:
+      repeating-linear-gradient(92deg, rgba(0,0,0,0.00) 0 7px, rgba(0,0,0,0.07) 7px 9px, rgba(255,220,180,0.03) 9px 13px),
+      repeating-linear-gradient(88deg, rgba(0,0,0,0.05) 0 31px, rgba(255,230,200,0.035) 31px 47px),
+      linear-gradient(160deg, var(--walnut-1), var(--walnut-2) 55%, var(--walnut-3));
+    box-shadow:
+      0 2px 0 rgba(255,220,180,0.12) inset,
+      0 -14px 0 #24160d inset,          /* canto frontal */
+      0 60px 80px -20px rgba(0,0,0,0.75),
+      0 20px 30px rgba(0,0,0,0.4);
+  }
+  /* Plato */
+  #platter {
+    position: absolute; left: 60px; top: 70px; width: 720px; height: 720px; border-radius: 50%;
+    background: radial-gradient(circle, #3b3734 0 60%, #6d6862 66%, #2a2725 69%, #8c867e 70%, #3a3633 71.5%);
+    box-shadow: 0 18px 30px rgba(0,0,0,0.55), 0 0 0 2px rgba(0,0,0,0.5);
+  }
+  #record {
+    position: absolute; inset: 14px; border-radius: 50%;
+    background:
+      repeating-radial-gradient(circle, rgba(255,255,255,0.025) 0 1px, rgba(0,0,0,0) 1px 3px),
+      radial-gradient(circle, #1a1717 0 34%, var(--vinyl) 35%, #171414 62%, #0e0c0c 63%, var(--vinyl) 64% 96%, #1b1818 97%, #0a0909 100%);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.8);
+    will-change: transform;
+  }
+  #label {
+    position: absolute; left: 50%; top: 50%; width: 33%; height: 33%;
+    transform: translate(-50%, -50%); border-radius: 50%;
+    background-color: #3a2a1d; background-repeat: no-repeat;
+    background-size: auto 100%; background-position: center;   /* recorta la tapa cuadrada del 16:9 */
+    box-shadow: 0 0 0 3px rgba(0,0,0,0.6), inset 0 0 24px rgba(0,0,0,0.35);
+    transition: opacity 400ms ease;
+  }
+  #spindle {
+    position: absolute; left: 50%; top: 50%; width: 16px; height: 16px; transform: translate(-50%, -50%);
+    border-radius: 50%; background: radial-gradient(circle at 35% 35%, #f2e6cf, #9a8f80 60%, #4d463e);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  }
+  /* Brillo: queda quieto mientras el disco gira (como la luz real). */
+  #sheen {
+    position: absolute; inset: 14px; border-radius: 50%; pointer-events: none;
+    background:
+      conic-gradient(from 300deg, transparent 0deg, rgba(255,245,230,0.10) 25deg, transparent 55deg,
+                     transparent 180deg, rgba(255,245,230,0.06) 205deg, transparent 235deg);
+    mask: radial-gradient(circle, transparent 0 17%, #000 18% 98%, transparent 99%);
+    -webkit-mask: radial-gradient(circle, transparent 0 17%, #000 18% 98%, transparent 99%);
+  }
+  /* Brazo */
+  #arm {
+    position: absolute; left: 870px; top: 120px; width: 0; height: 0;
+    transition: transform 900ms cubic-bezier(.45,.05,.25,1);
+    transform: rotate(0deg);
+  }
+  #arm .pivot {
+    position: absolute; left: -46px; top: -46px; width: 92px; height: 92px; border-radius: 50%;
+    background: radial-gradient(circle at 38% 35%, var(--brass-light), var(--brass) 45%, #6b4c25 100%);
+    box-shadow: 0 10px 18px rgba(0,0,0,0.55), inset 0 -4px 8px rgba(0,0,0,0.3);
+  }
+  #arm .pivot::after {
+    content: ""; position: absolute; inset: 26px; border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #3a342e, #1a1613); box-shadow: inset 0 2px 4px rgba(0,0,0,0.6);
+  }
+  #arm .counterweight {
+    position: absolute; left: -24px; top: -110px; width: 48px; height: 58px; border-radius: 10px;
+    background: linear-gradient(90deg, #2c2724, #4a433d 45%, #2a2522);
+    box-shadow: 0 8px 14px rgba(0,0,0,0.5);
+  }
+  #arm .tube {
+    position: absolute; left: -7px; top: 0; width: 14px; height: 560px; border-radius: 7px;
+    transform-origin: 7px 0; transform: rotate(14deg);
+    background: linear-gradient(90deg, #8f8a83, #e9e4dc 40%, #a7a199 70%, #6f6a64);
+    box-shadow: 10px 16px 14px rgba(0,0,0,0.45);
+    transition: box-shadow 600ms ease;
+  }
+  #arm .head {
+    position: absolute; left: -28px; bottom: -64px; width: 56px; height: 78px; border-radius: 8px 8px 12px 12px;
+    background: linear-gradient(90deg, #26211d, #48413b 50%, #26211d);
+    transform: rotate(-22deg);
+    box-shadow: 8px 12px 12px rgba(0,0,0,0.5);
+  }
+  #arm .head::after {   /* dedo para levantar */
+    content: ""; position: absolute; right: -18px; top: 14px; width: 22px; height: 6px; border-radius: 3px;
+    background: var(--brass);
+  }
+  #arm.lifted .tube { box-shadow: 22px 34px 22px rgba(0,0,0,0.35); }
+  /* Apoyabrazo */
+  #rest {
+    position: absolute; left: 728px; top: 585px; width: 40px; height: 56px; border-radius: 8px;
+    background: linear-gradient(90deg, #2a2522, #4a433d, #2a2522); box-shadow: 0 8px 12px rgba(0,0,0,0.5);
+  }
+  /* Perilla de velocidad y luz de encendido, detalle */
+  #knob {
+    position: absolute; left: 70px; bottom: 50px; width: 64px; height: 64px; border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #4a433d, #1f1b18); box-shadow: 0 6px 10px rgba(0,0,0,0.5);
+  }
+  #knob::after { content: ""; position: absolute; left: 30px; top: 8px; width: 4px; height: 16px; border-radius: 2px; background: var(--brass); }
+  #knob-label { position: absolute; left: 150px; bottom: 68px; font: 500 18px Inter; letter-spacing: .2em; color: rgba(237,227,209,.45); }
+  #pilot {
+    position: absolute; left: 155px; bottom: 54px; width: 10px; height: 10px; border-radius: 50%;
+    background: #e3a24a; box-shadow: 0 0 10px 2px rgba(227,162,74,0.6); transition: opacity 400ms;
+  }
+  .paused #pilot { opacity: 0.25; }
+
+  /* ---------- Texto ---------- */
+  #info { position: absolute; left: 1170px; top: 170px; width: 660px; }
+  #station {
+    font: 500 22px Inter; letter-spacing: 0.22em; text-transform: uppercase; color: var(--brass);
+    display: flex; align-items: center; gap: 14px;
+  }
+  #station::before { content: ""; width: 34px; height: 2px; background: var(--brass); opacity: .7; }
+  #title {
+    margin-top: 34px; font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: 74px; line-height: 1.04;
+    letter-spacing: -0.01em; color: var(--cream);
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  #artist { margin-top: 22px; font-family: Fraunces, Georgia, serif; font-weight: 400; font-size: 44px; color: var(--cream-dim); }
+  #progress { margin-top: 54px; display: flex; align-items: center; gap: 20px; font: 400 20px Inter; color: var(--cream-faint); font-variant-numeric: tabular-nums; }
+  #bar { flex: 1; height: 3px; border-radius: 2px; background: rgba(237,227,209,0.14); overflow: hidden; }
+  #bar > div { height: 100%; width: 0; background: var(--brass); }
+  #paused-tag { margin-top: 18px; height: 26px; font: 500 20px Inter; letter-spacing: .18em; text-transform: uppercase; color: var(--brass-light); opacity: 0; transition: opacity 300ms; }
+  .paused #paused-tag { opacity: 1; }
+
+  #next { margin-top: 70px; }
+  #next h3 { font: 500 18px Inter; letter-spacing: 0.22em; text-transform: uppercase; color: var(--cream-faint); margin-bottom: 18px; }
+  #next li { list-style: none; display: flex; align-items: center; gap: 18px; padding: 10px 0; font: 400 24px Inter; color: var(--cream-dim); }
+  #next li .thumb { width: 52px; height: 52px; border-radius: 4px; flex: none; background-size: auto 100%; background-position: center; opacity: .85; }
+  #next li .a { color: var(--cream-faint); }
+
+  #hints {
+    position: absolute; right: 90px; bottom: 54px; display: flex; gap: 34px;
+    font: 400 18px Inter; color: rgba(237,227,209,0.28);
+  }
+  #hints b { font-weight: 500; color: rgba(237,227,209,0.45); margin-right: 8px; }
+
+  .fade { transition: opacity 450ms ease; }
+  .fade.out { opacity: 0; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="deck">
+    <div id="plinth">
+      <div id="platter">
+        <div id="record"><div id="label"></div></div>
+        <div id="sheen"></div>
+        <div id="spindle"></div>
+      </div>
+      <div id="rest"></div>
+      <div id="arm">
+        <div class="counterweight"></div>
+        <div class="tube"><div class="head"></div></div>
+        <div class="pivot"></div>
+      </div>
+      <div id="knob"></div>
+      <div id="pilot"></div>
+      <div id="knob-label">33⅓</div>
+    </div>
+  </div>
+
+  <div id="info">
+    <div id="station" class="fade"></div>
+    <div id="title" class="fade"></div>
+    <div id="artist" class="fade"></div>
+    <div id="progress"><span id="t-cur">0:00</span><div id="bar"><div></div></div><span id="t-len">0:00</span></div>
+    <div id="paused-tag">En pausa</div>
+    <div id="next" class="fade"><h3>Lo que viene</h3><ul id="next-list"></ul></div>
+  </div>
+
+  <div id="hints"><span><b>→</b>siguiente</span><span><b>OK</b>pausa</span><span><b>↑↓</b>estación</span></div>
+</div>
+
+<script>
+  const thumb = id => `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`;
+  const stations = [
+    { name: "Radio · Rock nacional", tracks: [
+      { id: "sWft4cMiwXQ", t: "De Música Ligera", a: "Soda Stereo", len: 213 },
+      { id: "YVXNPPdh6wE", t: "Crimen", a: "Gustavo Cerati", len: 230 },
+      { id: "oMszTlYRxWg", t: "Demoliendo Hoteles", a: "Charly García", len: 188 },
+      { id: "xJCMt00NQ1Q", t: "Mariposa Tecknicolor", a: "Fito Páez", len: 264 },
+      { id: "dKJM2ux3bF8", t: "Matador", a: "Los Fabulosos Cadillacs", len: 279 },
+      { id: "VSWSnIcnoH4", t: "Seguir Viviendo Sin Tu Amor", a: "Luis Alberto Spinetta", len: 197 },
+    ]},
+    { name: "Radio · Spinetta", tracks: [
+      { id: "VSWSnIcnoH4", t: "Seguir Viviendo Sin Tu Amor", a: "Luis Alberto Spinetta", len: 197 },
+      { id: "xJCMt00NQ1Q", t: "Mariposa Tecknicolor", a: "Fito Páez", len: 264 },
+      { id: "YVXNPPdh6wE", t: "Crimen", a: "Gustavo Cerati", len: 230 },
+    ]},
+    { name: "Radio · Cerati", tracks: [
+      { id: "YVXNPPdh6wE", t: "Crimen", a: "Gustavo Cerati", len: 230 },
+      { id: "sWft4cMiwXQ", t: "De Música Ligera", a: "Soda Stereo", len: 213 },
+      { id: "dKJM2ux3bF8", t: "Matador", a: "Los Fabulosos Cadillacs", len: 279 },
+    ]},
+  ];
+
+  // ---- Escalado del escenario 1920x1080 a la ventana ----
+  const stage = document.getElementById("stage");
+  function fit() { const k = Math.min(innerWidth / 1920, innerHeight / 1080);
+    stage.style.transform = `scale(${k}) translate(-50%, -50%)`; }
+  addEventListener("resize", fit); fit();
+
+  // ---- Estado ----
+  const $ = id => document.getElementById(id);
+  const arm = $("arm"), record = $("record"), label = $("label");
+  let st = 0, idx = 0, pos = 0, playing = false, changing = false;
+  let angle = 0, speed = 0;                 // grados y grados/seg del disco
+  const RPM_DEG = 33.333 * 360 / 60;        // 33⅓ rpm = 200°/s
+  const ARM_REST = 0, ARM_START = 8, ARM_END = 29;    // ángulo del brazo: apoyado → borde → final del tema
+
+  const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+  const tracks = () => stations[st].tracks;
+  const cur = () => tracks()[idx];
+
+  function render() {
+    const tr = cur();
+    $("station").textContent = stations[st].name;
+    $("title").textContent = tr.t;
+    $("artist").textContent = tr.a;
+    $("t-len").textContent = fmt(tr.len);
+    label.style.backgroundImage = `url(${thumb(tr.id)})`;
+    const up = [1, 2, 3].map(k => tracks()[(idx + k) % tracks().length]);
+    $("next-list").innerHTML = up.map(u =>
+      `<li><div class="thumb" style="background-image:url(${thumb(u.id)})"></div><span>${u.t} <span class="a">· ${u.a}</span></span></li>`).join("");
+  }
+
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const setArm = (deg, lifted) => { arm.style.transform = `rotate(${deg}deg)`; arm.classList.toggle("lifted", lifted); };
+
+  // Cambio de tema: se levanta el brazo, frena el disco, cambia la tapa, baja el brazo.
+  async function change(updateIndex) {
+    if (changing) return; changing = true;
+    playing = false;
+    setArm(ARM_REST + 2, true);                       // levanta y vuelve hacia el apoyabrazo
+    document.querySelectorAll(".fade").forEach(e => e.classList.add("out"));
+    await sleep(700);
+    updateIndex(); pos = 0; render();
+    document.querySelectorAll(".fade").forEach(e => e.classList.remove("out"));
+    await sleep(300);
+    setArm(ARM_START, true);                          // viaja al borde del disco
+    await sleep(950);
+    setArm(ARM_START, false);                         // apoya
+    stage.classList.remove("paused");
+    playing = true; changing = false;
+  }
+  const next = () => change(() => { idx = (idx + 1) % tracks().length; });
+  const station = d => change(() => { st = (st + d + stations.length) % stations.length; idx = 0; });
+
+  function togglePause() {
+    if (changing) return;
+    playing = !playing;
+    stage.classList.toggle("paused", !playing);
+    setArm(ARM_START + (ARM_END - ARM_START) * (pos / cur().len), !playing);   // en pausa el brazo se levanta
+  }
+
+  addEventListener("keydown", e => {
+    if (e.key === "ArrowRight") next();
+    else if (e.key === "ArrowUp") station(-1);
+    else if (e.key === "ArrowDown") station(1);
+    else if (e.key === "Enter" || e.key === " ") togglePause();
+    else return;
+    e.preventDefault();
+  });
+
+  // ---- Bucle: giro con inercia, progreso y avance del brazo hacia el centro ----
+  let last = performance.now();
+  function tick(now) {
+    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    const target = playing ? RPM_DEG : 0;
+    speed += (target - speed) * Math.min(1, dt * (playing ? 1.6 : 1.1));   // arranque/frenado suave
+    angle = (angle + speed * dt) % 360;
+    record.style.transform = `rotate(${angle}deg)`;
+    if (playing && !changing) {
+      pos += dt * 6;   // mockup: el tiempo corre 6x para ver el brazo avanzar
+      if (pos >= cur().len) next();
+      else setArm(ARM_START + (ARM_END - ARM_START) * (pos / cur().len), false);
+    }
+    $("t-cur").textContent = fmt(pos);
+    $("bar").firstElementChild.style.width = `${(pos / cur().len) * 100}%`;
+    requestAnimationFrame(tick);
+  }
+  render(); setArm(ARM_REST, true); requestAnimationFrame(tick);
+  setTimeout(() => change(() => {}), 600);   // arranca: el brazo va al disco
+</script>
+</body>
+</html>
