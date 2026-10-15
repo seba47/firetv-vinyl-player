@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#17120f">
+<title>Vinilo</title>
+<!-- La sirve la tele (WebServer.kt). Diseño: design/mockup/celular.html. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Familjen+Grotesk:wght@400;500&family=Big+Shoulders+Text:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  /* Una columna para el pulgar: arriba lo que suena (control de bolsillo), abajo el buscador. */
+  :root {
+    color-scheme: dark;
+    --bg: #17120f; --panel: #241b15; --line: rgb(238 227 207 / .10);
+    --cream: #eee3cf; --cream-2: rgb(238 227 207 / .64); --cream-3: rgb(238 227 207 / .40);
+    --brass: #c2924f; --brass-ink: #2a1a0c;
+    --f-display: "Young Serif", "Iowan Old Style", Georgia, serif;
+    --f-body: "Familjen Grotesk", "Helvetica Neue", Arial, sans-serif;
+    --f-engrave: "Big Shoulders Text", "Arial Narrow", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { min-height: 100%; }
+  body { background: var(--bg); color: var(--cream); font: 16px/1.4 var(--f-body); -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 480px; margin: 0 auto; padding-inline: 18px; padding-block: calc(14px + env(safe-area-inset-top, 0px)) 120px; display: grid; gap: 22px; }
+  .engrave { font-family: var(--f-engrave); font-weight: 500; text-transform: uppercase; letter-spacing: .2em; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+  header { display: flex; align-items: center; justify-content: space-between; }
+  header .brand { font-family: var(--f-display); font-size: 22px; }
+  header .link { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--cream-3); }
+  header .dot { width: 8px; height: 8px; border-radius: 50%; background: #e8a54c; box-shadow: 0 0 8px rgb(232 165 76 / .7); }
+  header .dot.off { background: #6b625a; box-shadow: none; }
+
+  #now { display: grid; grid-template-columns: 76px 1fr auto; gap: 14px; align-items: center; padding: 12px; border-radius: 14px; background: var(--panel); }
+  .cover { aspect-ratio: 1; max-width: 100%; border-radius: 6px; background: #3a2a1d center / cover no-repeat; }
+  #now .cover { width: 76px; border-radius: 50%; box-shadow: 0 0 0 5px #0f0d0c, 0 0 0 6px #2a2522; }
+  #now.playing .cover { animation: spin 1.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { #now.playing .cover { animation: none; } }
+  #now .meta { min-width: 0; }
+  #now .seed { font-size: 12px; color: var(--brass); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #now .t { margin-top: 4px; font-family: var(--f-display); font-size: 18px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #now .a { font-size: 14px; color: var(--cream-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #now .ctrls { display: flex; gap: 4px; }
+  .icon-btn { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; }
+  .icon-btn:active { background: var(--line); }
+  .icon-btn svg { width: 22px; height: 22px; fill: var(--cream); }
+
+  .search { display: flex; align-items: center; gap: 10px; padding: 0 14px; height: 52px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); }
+  .search svg { width: 20px; height: 20px; fill: none; stroke: var(--cream-3); stroke-width: 2; flex: none; }
+  .search input { flex: 1; min-width: 0; height: 100%; background: none; border: 0; color: var(--cream); font: 17px var(--f-body); outline: none; }
+  .search input::placeholder { color: var(--cream-3); }
+
+  .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; border-radius: 12px; background: var(--panel); }
+  .tabs button { height: 40px; border-radius: 9px; font-size: 15px; color: var(--cream-2); }
+  .tabs button[aria-selected="true"] { background: var(--brass); color: var(--brass-ink); font-weight: 500; }
+
+  h2.section { font-size: 13px; color: var(--cream-3); font-weight: 500; }
+  .list { list-style: none; display: grid; }
+  .list li button { width: 100%; display: grid; grid-template-columns: 56px 1fr auto; gap: 14px; align-items: center; padding: 10px 0; text-align: left; border-bottom: 1px solid var(--line); }
+  .list .cover { width: 56px; }
+  .list .txt { min-width: 0; }
+  .list .t { font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .list .s { font-size: 14px; color: var(--cream-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .list .go { font-size: 13px; color: var(--brass); }
+  .note { color: var(--cream-3); padding: 24px 0; text-align: center; }
+
+  #sheet-bg { position: fixed; inset: 0; background: rgb(0 0 0 / .55); opacity: 0; pointer-events: none; transition: opacity 250ms; }
+  #sheet { position: fixed; left: 0; right: 0; bottom: 0; max-width: 480px; margin: 0 auto; padding: 22px 18px calc(22px + env(safe-area-inset-bottom, 0px));
+    border-radius: 20px 20px 0 0; background: #2a2019; transform: translateY(105%); transition: transform 320ms cubic-bezier(.3,.7,.2,1); display: grid; gap: 16px; }
+  .open #sheet { transform: none; } .open #sheet-bg { opacity: 1; pointer-events: auto; }
+  #sheet .head { display: grid; grid-template-columns: 96px 1fr; gap: 16px; align-items: center; }
+  #sheet .cover { width: 96px; }
+  #sheet .kind { font-size: 13px; color: var(--brass); }
+  #sheet h3 { font-family: var(--f-display); font-weight: 400; font-size: 24px; line-height: 1.15; margin-top: 4px; text-wrap: balance; }
+  #sheet .by { color: var(--cream-2); font-size: 15px; margin-top: 2px; }
+  #sheet p { color: var(--cream-2); font-size: 15px; line-height: 1.5; }
+  #sheet p b { color: var(--cream); font-weight: 500; }
+  .primary { height: 54px; border-radius: 14px; background: var(--brass); color: var(--brass-ink); font-weight: 500; font-size: 17px; }
+  .secondary { height: 46px; border-radius: 14px; color: var(--cream-2); }
+
+  #toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 16px); padding: 12px 18px; border-radius: 30px;
+    background: var(--cream); color: var(--brass-ink); font-size: 15px; font-weight: 500; opacity: 0; transition: opacity 250ms, transform 250ms; max-width: calc(100% - 36px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="brand">Vinilo</span>
+    <span class="link"><span class="dot" id="dot"></span><span id="link-text">Conectado a la tele</span></span>
+  </header>
+
+  <section id="now" aria-label="Sonando en la tele">
+    <div class="cover"></div>
+    <div class="meta"><div class="seed engrave">Nada sonando</div><div class="t">Elegí algo abajo</div><div class="a"></div></div>
+    <div class="ctrls">
+      <button class="icon-btn" id="btn-pause" aria-label="Pausa"></button>
+      <button class="icon-btn" id="btn-next" aria-label="Siguiente"><svg viewBox="0 0 24 24"><path d="M6 5l9 7-9 7zM16 5h3v14h-3z"/></svg></button>
+    </div>
+  </section>
+
+  <label class="search" for="q">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+    <input id="q" type="search" placeholder="Buscá un tema, disco o artista" autocomplete="off" enterkeyhint="search">
+  </label>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tab-song" data-kind="song" aria-selected="true">Temas</button>
+    <button role="tab" id="tab-album" data-kind="album" aria-selected="false">Discos</button>
+    <button role="tab" id="tab-playlist" data-kind="playlist" aria-selected="false">Playlists</button>
+  </div>
+
+  <h2 class="section engrave" id="list-title">Estaciones recientes</h2>
+  <ul class="list" id="results"></ul>
+  <div class="note" id="note" hidden></div>
+</div>
+
+<div id="sheet-bg"></div>
+<div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+  <div class="head">
+    <div class="cover" id="sheet-cover"></div>
+    <div><div class="kind engrave" id="sheet-kind"></div><h3 id="sheet-title"></h3><div class="by" id="sheet-by"></div></div>
+  </div>
+  <p id="sheet-text"></p>
+  <button class="primary" id="btn-play">Poner en la tele</button>
+  <button class="secondary" id="btn-cancel">Cancelar</button>
+</div>
+<div id="toast" role="status"></div>
+
+<script>
+  const KIND = { SONG: "Tema", ALBUM: "Disco", PLAYLIST: "Playlist" };
+  const ICON_PAUSE = '<svg viewBox="0 0 24 24"><path d="M7 5h3v14H7zM14 5h3v14h-3z"/></svg>';
+  const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z"/></svg>';
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  let kind = "song", items = [], picked = null, recent = [], searchSeq = 0;
+
+  const cover = thumb => `<div class="cover" style="background-image:url('${esc(thumb)}')"></div>`;
+  function row(item, i) {
+    const count = item.count > 1 ? ` · ${item.count} temas` : "";
+    const sub = item.kind === "SONG" ? item.subtitle : `${KIND[item.kind]} · ${item.subtitle}${count}`;
+    return `<li><button data-i="${i}">${cover(item.thumb)}<span class="txt"><div class="t">${esc(item.title)}</div><div class="s">${esc(sub)}</div></span><span class="go">Poner</span></button></li>`;
+  }
+  function showList(list, title, empty) {
+    items = list;
+    $("list-title").textContent = title;
+    $("results").innerHTML = list.map(row).join("");
+    $("note").hidden = list.length > 0;
+    $("note").textContent = empty;
+  }
+  const showRecent = () => showList(recent, "Estaciones recientes", "Todavía no pusiste nada. Buscá un tema, un disco o una playlist.");
+
+  let debounce;
+  async function search() {
+    const q = $("q").value.trim();
+    clearTimeout(debounce);
+    if (!q) { showRecent(); return; }
+    debounce = setTimeout(async () => {
+      const seq = ++searchSeq;
+      $("list-title").textContent = "Buscando…";
+      try {
+        const r = await fetch(`/api/search?kind=${kind}&q=${encodeURIComponent(q)}`);
+        const data = await r.json();
+        if (seq !== searchSeq) return;
+        if (!r.ok) throw new Error(data.error);
+        showList(data, `Resultados en ${({ song: "temas", album: "discos", playlist: "playlists" })[kind]}`, "No encontré nada con eso. Probá con el nombre del artista.");
+      } catch (e) {
+        if (seq === searchSeq) showList([], "Resultados", "No pude buscar. Revisá que la tele siga prendida y en el mismo WiFi.");
+      }
+    }, 350);
+  }
+
+  function openSheet(item) {
+    picked = item;
+    $("sheet-cover").style.backgroundImage = `url('${item.thumb}')`;
+    $("sheet-kind").textContent = KIND[item.kind];
+    $("sheet-title").textContent = item.title;
+    $("sheet-by").textContent = item.subtitle;
+    const what = item.kind === "SONG" ? "Suena <b>este tema</b>"
+      : item.kind === "ALBUM" ? `Suena <b>el disco entero</b>, en orden${item.count > 1 ? ` (${item.count} temas)` : ""}`
+      : `Suena <b>la playlist</b>${item.count > 1 ? ` (${item.count} temas)` : ""}`;
+    $("sheet-text").innerHTML = `${what} y después la tele <b>sigue enganchando temas parecidos al azar</b>, sin parar.`;
+    document.body.classList.add("open");
+  }
+  const closeSheet = () => document.body.classList.remove("open");
+
+  let toastTimer;
+  function toast(text) { const t = $("toast"); t.textContent = text; t.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 2400); }
+  const post = path => fetch(path, { method: "POST" }).then(r => { if (!r.ok) throw new Error(); refresh(); }).catch(() => toast("No llego a la tele"));
+
+  document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => {
+    kind = b.dataset.kind;
+    document.querySelectorAll(".tabs button").forEach(x => x.setAttribute("aria-selected", x === b));
+    search();
+  }));
+  $("q").addEventListener("input", search);
+  $("results").addEventListener("click", e => { const b = e.target.closest("button[data-i]"); if (b) openSheet(items[+b.dataset.i]); });
+  $("sheet-bg").addEventListener("click", closeSheet);
+  $("btn-cancel").addEventListener("click", closeSheet);
+  $("btn-play").addEventListener("click", async () => {
+    const seed = { kind: picked.kind, title: picked.title, subtitle: picked.subtitle, url: picked.url, thumb: picked.thumb };
+    closeSheet();
+    try {
+      const r = await fetch("/api/play", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(seed) });
+      if (!r.ok) throw new Error();
+      toast(`Listo: ${picked.title} en la tele`);
+      setTimeout(refresh, 1500);
+    } catch { toast("No llego a la tele"); }
+  });
+  $("btn-pause").addEventListener("click", () => post("/api/toggle"));
+  $("btn-next").addEventListener("click", () => post("/api/next"));
+
+  async function refresh() {
+    try {
+      const s = await (await fetch("/api/state")).json();
+      $("dot").classList.remove("off"); $("link-text").textContent = "Conectado a la tele";
+      const now = $("now");
+      if (s.current) {
+        now.querySelector(".cover").style.backgroundImage = `url('${s.current.thumb}')`;
+        now.querySelector(".seed").textContent = s.current.auto ? `Enganchando · parecidos a ${s.seed?.title ?? ""}` : `${KIND[s.seed?.kind] ?? ""} · ${s.seed?.title ?? ""}`;
+        now.querySelector(".t").textContent = s.current.title;
+        now.querySelector(".a").textContent = s.current.artist;
+      }
+      now.classList.toggle("playing", !!s.playing);
+      $("btn-pause").innerHTML = s.playing ? ICON_PAUSE : ICON_PLAY;
+      $("btn-pause").setAttribute("aria-label", s.playing ? "Pausa" : "Seguir");
+      recent = (s.recent || []).map(r => ({ ...r, count: -1 }));
+      if (!$("q").value.trim()) showRecent();
+    } catch {
+      $("dot").classList.add("off"); $("link-text").textContent = "Sin conexión con la tele";
+    }
+  }
+  $("btn-pause").innerHTML = ICON_PAUSE;
+  refresh(); setInterval(refresh, 3000);
+</script>
+</body>
+</html>

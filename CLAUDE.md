@@ -44,11 +44,11 @@ radio. Uso personal, sin publicar en ninguna tienda (sideload).
 ## Plan por fases
 0. ✅ **Spike** (hecho: extracción, Opus 160 kbps y sideload andan en el Fire TV real) (validar lo riesgoso primero): app mínima que busca un tema con NewPipeExtractor y lo
    reproduce con ExoPlayer, instalada en el Fire TV real. Confirma extracción, audio y sideload.
-1. **Estación infinita** + control remoto + MediaSession (sigue sonando en segundo plano, play/pausa
+1. ✅ **Estación infinita** + control remoto + MediaSession (sigue sonando en segundo plano, play/pausa
    del control, "Alexa, pausa" desde el control).
-2. **El tocadiscos**: animación del disco, brazo, tapa como etiqueta, paleta. Hacer un mockup
+2. ✅ **El tocadiscos** (según design/mockup/vistoso.html): animación del disco, brazo, tapa como etiqueta, paleta. Hacer un mockup
    visual antes de programarlo.
-3. **Elegir qué suena**: búsqueda desde el celular vía QR (ver pregunta 2) + estaciones recientes.
+3. ✅ **Elegir qué suena**: búsqueda desde el celular vía QR (ver pregunta 2) + estaciones recientes.
 4. **Pulido**: recuperación de errores (saltear temas que fallan), reconexión, cómo actualizar
    NewPipeExtractor, README de instalación.
 

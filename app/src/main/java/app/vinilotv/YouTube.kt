@@ -2,8 +2,10 @@ package app.vinilotv
 
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.schabi.newpipe.extractor.Image
 import org.schabi.newpipe.extractor.MediaFormat
 import org.schabi.newpipe.extractor.NewPipe
+import org.schabi.newpipe.extractor.Page
 import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.downloader.Downloader
 import org.schabi.newpipe.extractor.downloader.Request
@@ -11,6 +13,8 @@ import org.schabi.newpipe.extractor.downloader.Response
 import org.schabi.newpipe.extractor.exceptions.ReCaptchaException
 import org.schabi.newpipe.extractor.localization.ContentCountry
 import org.schabi.newpipe.extractor.localization.Localization
+import org.schabi.newpipe.extractor.playlist.PlaylistInfo
+import org.schabi.newpipe.extractor.playlist.PlaylistInfoItem
 import org.schabi.newpipe.extractor.search.SearchInfo
 import org.schabi.newpipe.extractor.services.youtube.linkHandler.YoutubeSearchQueryHandlerFactory
 import org.schabi.newpipe.extractor.stream.AudioStream
@@ -20,17 +24,35 @@ import org.schabi.newpipe.extractor.stream.StreamInfoItem
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
-/** Tema encontrado en una búsqueda: todavía sin URL de audio (esa vence, se resuelve al tocarlo). */
-data class Track(val url: String, val title: String, val artist: String)
+/** Un tema todavía sin URL de audio (esa vence en ~6 h: se resuelve justo antes de tocarlo). */
+data class Track(
+    val videoId: String,
+    val title: String,
+    val artist: String,
+    val durationSec: Long = 0,
+    val thumbnailUrl: String? = null,
+) {
+    val url get() = "https://www.youtube.com/watch?v=$videoId"
+}
 
-/** Tema listo para reproducir. [audioUrl] vence en ~6 h y queda atada a la IP que la resolvió. */
+/** Tema listo para reproducir. [audioUrl] queda atada a la IP que la resolvió. */
 data class ResolvedTrack(
     val track: Track,
     val audioUrl: String,
     val format: String,
-    val codec: String?,
     val bitrateKbps: Int,
+)
+
+enum class SeedKind(val label: String) { SONG("Tema"), ALBUM("Disco"), PLAYLIST("Playlist") }
+
+/** Resultado de búsqueda: lo que se puede elegir como semilla de una estación. */
+data class SearchResult(
+    val kind: SeedKind,
+    val title: String,
+    val subtitle: String,
+    val url: String,
     val thumbnailUrl: String?,
+    val trackCount: Long = -1,
 )
 
 /** Capa fina sobre NewPipeExtractor. Llamar desde un hilo de fondo: todo es bloqueante. */
@@ -53,35 +75,117 @@ object YouTube {
         }
     }
 
-    /** Busca en YouTube Music (solo canciones): da audios oficiales, sin videoclips. */
-    fun searchSongs(query: String): List<Track> {
+    /** Busca en YouTube Music: temas, discos o playlists. */
+    fun search(query: String, kind: SeedKind): List<SearchResult> {
         init()
-        val handler = service.searchQHFactory
-            .fromQuery(query, listOf(YoutubeSearchQueryHandlerFactory.MUSIC_SONGS), "")
-        return SearchInfo.getInfo(service, handler).relatedItems
-            .filterIsInstance<StreamInfoItem>()
-            .map { Track(it.url, it.name, it.uploaderName.orEmpty().removeSuffix(" - Topic")) }
+        val filter = when (kind) {
+            SeedKind.SONG -> YoutubeSearchQueryHandlerFactory.MUSIC_SONGS
+            SeedKind.ALBUM -> YoutubeSearchQueryHandlerFactory.MUSIC_ALBUMS
+            SeedKind.PLAYLIST -> YoutubeSearchQueryHandlerFactory.MUSIC_PLAYLISTS
+        }
+        val handler = service.searchQHFactory.fromQuery(query, listOf(filter), "")
+        return SearchInfo.getInfo(service, handler).relatedItems.mapNotNull { item ->
+            when (item) {
+                is StreamInfoItem -> tidy(item.name, cleanArtist(item.uploaderName)).let { (title, artist) ->
+                    SearchResult(SeedKind.SONG, title, artist, item.url, item.thumbnails.best(), 1)
+                }
+                is PlaylistInfoItem -> SearchResult(
+                    kind, item.name, cleanArtist(item.uploaderName), item.url,
+                    item.thumbnails.best(), item.streamCount,
+                )
+                else -> null
+            }
+        }
+    }
+
+    fun searchSongs(query: String): List<Track> =
+        search(query, SeedKind.SONG).mapNotNull { r ->
+            videoIdOf(r.url)?.let { Track(it, r.title, r.subtitle, 0, r.thumbnailUrl) }
+        }
+
+    /** Temas de un disco o playlist, en orden (hasta [max]). */
+    fun playlistTracks(url: String, max: Int = 200): List<Track> {
+        init()
+        val info = PlaylistInfo.getInfo(service, url)
+        val items = info.relatedItems.toMutableList()
+        var page: Page? = info.nextPage
+        while (page != null && items.size < max) {
+            val more = PlaylistInfo.getMoreItems(service, url, page)
+            items += more.items
+            page = more.nextPage
+        }
+        val albumArt = info.thumbnails.best()
+        return items.take(max).mapNotNull { it.toTrack(albumArt) }
+    }
+
+    /** "Radio" de YouTube Music a partir de un tema: temas parecidos, el primero suele ser el mismo. */
+    fun mix(videoId: String): List<Track> {
+        init()
+        val info = PlaylistInfo.getInfo(service, "https://www.youtube.com/watch?v=$videoId&list=RDAMVM$videoId")
+        return info.relatedItems.mapNotNull { it.toTrack(null) }.filter { it.videoId != videoId }
     }
 
     /** Resuelve la mejor pista de audio directa (prefiere Opus, si no AAC). */
     fun resolve(track: Track): ResolvedTrack {
         init()
         val info = StreamInfo.getInfo(service, track.url)
-        val candidates = info.audioStreams.filter {
-            it.isUrl && it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP
-        }
-        val best = candidates.maxWithOrNull(
-            compareBy<AudioStream>({ it.isOriginalTrack() }, { it.format == MediaFormat.WEBMA_OPUS }, { it.averageBitrate })
-        ) ?: error("Sin audio directo para ${track.url} (streams: ${info.audioStreams.size})")
+        val best = info.audioStreams
+            .filter { it.isUrl && it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }
+            .maxWithOrNull(compareBy<AudioStream>({ it.isOriginalTrack() }, { it.format == MediaFormat.WEBMA_OPUS }, { it.averageBitrate }))
+            ?: error("Sin audio directo para ${track.url} (streams: ${info.audioStreams.size})")
         return ResolvedTrack(
-            track = track.copy(title = info.name, artist = info.uploaderName.orEmpty().removeSuffix(" - Topic")),
+            track = track.copy(
+                title = tidy(info.name, cleanArtist(info.uploaderName)).first,
+                artist = tidy(info.name, cleanArtist(info.uploaderName)).second,
+                durationSec = info.duration,
+                thumbnailUrl = track.thumbnailUrl ?: info.thumbnails.best(),
+            ),
             audioUrl = best.content,
             format = best.format?.getName() ?: "?",
-            codec = best.codec,
             bitrateKbps = best.averageBitrate,
-            thumbnailUrl = info.thumbnails.maxByOrNull { it.width }?.url,
         )
     }
+
+    fun videoIdOf(url: String): String? = Regex("[?&]v=([A-Za-z0-9_-]{11})").find(url)?.groupValues?.get(1)
+
+    private fun StreamInfoItem.toTrack(fallbackThumb: String?): Track? {
+        val id = videoIdOf(url) ?: return null
+        val (title, artist) = tidy(name, cleanArtist(uploaderName))
+        return Track(id, title, artist, duration.coerceAtLeast(0), fallbackThumb ?: thumbnails.best())
+    }
+
+    private fun List<Image>.best(): String? =
+        (maxByOrNull { it.width * it.height }?.url ?: firstOrNull()?.url)?.let(::bigger)
+
+    // Las tapas de YT Music vienen de googleusercontent con el tamaño en la URL (=w120-h120…):
+    // se puede pedir más grande. Las miniaturas de i.ytimg.com quedan como están.
+    fun bigger(url: String): String = url.replace(Regex("=w\\d+-h\\d+[^/]*$"), "=w720-h720-l90-rj")
+
+    private val noise = Regex(
+        "\\s*[(\\[][^)\\]]*(official|oficial|video|v[ií]deo|audio|lyric|letra|remaster|visualizer|\\bhd\\b|4k)[^)\\]]*[)\\]]",
+        RegexOption.IGNORE_CASE,
+    )
+
+    /**
+     * Título y artista prolijos para mostrar: saca "(Remasterizado 2007)", "(Official Video)", etc.
+     * (deja "(En Vivo)" o "(MTV Unplugged)") y separa "Artista - Tema" de los videos de YouTube.
+     */
+    fun tidy(rawTitle: String, rawArtist: String): Pair<String, String> {
+        var title = rawTitle.replace(noise, "").trim()
+        var artist = rawArtist.removeSuffix("VEVO").trim()
+        val dash = title.indexOf(" - ")
+        if (dash > 0) {
+            val left = title.substring(0, dash).trim()
+            val right = title.substring(dash + 3).trim()
+            val sameArtist = left.equals(artist, ignoreCase = true) ||
+                left.replace(" ", "").equals(artist.replace(" ", ""), ignoreCase = true)
+            if (sameArtist || rawArtist.endsWith("VEVO")) { artist = left; title = right }
+        }
+        return title.ifBlank { rawTitle } to artist.ifBlank { rawArtist }
+    }
+
+    // Los canales automáticos de YT Music se llaman "Artista - Topic".
+    private fun cleanArtist(name: String?) = name.orEmpty().removeSuffix(" - Topic")
 
     // Temas con varias pistas de idioma (doblajes automáticos): quedarse con la original.
     private fun AudioStream.isOriginalTrack() =

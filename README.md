@@ -1,12 +1,21 @@
 # Vinilo TV
 
-Tocadiscos de fondo para Fire TV: va pasando temas de YouTube Music sin parar, como una radio.
-App nativa Android TV (Kotlin + Compose + Media3) con extracción en el dispositivo vía
-[NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor). Uso personal, sideload.
+Tocadiscos de fondo para Fire TV: elegís un tema, un disco o una playlist desde el celular y suena
+YouTube Music sin parar, con un vinilo girando en la tele. App nativa Android TV (Kotlin + Compose +
+Media3) con extracción en el dispositivo vía [NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor).
+Sin servidor propio. Uso personal, sideload.
 
-> Estado: **fase 0 (spike)** — busca un tema y lo reproduce. Todavía sin diseño.
+## Cómo se usa
 
-## Rápido
+- **Elegir qué suena:** apretá **≡** en el control → aparece un QR → escanealo con el celular (mismo
+  WiFi) → buscá un tema, disco o playlist → "Poner en la tele".
+- Suena la semilla (un disco va en orden, "Lado A · tema 3") y cuando termina **sigue enganchando
+  temas parecidos al azar**, sin repetir. Nunca se corta.
+- Control remoto: **→** siguiente · **OK** pausa · **↑↓** estaciones recientes · **≡** elegir música ·
+  **Atrás** sale (la música sigue sonando de fondo; play/pausa del control y "Alexa, pausa" andan).
+- A los 3 minutos sin tocar nada queda solo el tocadiscos (salvapantallas propio).
+
+## Desde la Mac
 
 ```bash
 scripts/smoke-test.sh "Soda Stereo"          # ¿NewPipeExtractor anda? (desde la Mac, sin tele)
@@ -17,7 +26,19 @@ scripts/logs.sh                              # logs de la app
 scripts/mockup.sh                            # mockups de diseño: http://localhost:8765/demo.html
 ```
 
-Control remoto (spike): **derecha** = siguiente resultado, **centro** = pausa.
+## Cómo está hecho
+
+| Pieza | Archivo |
+|---|---|
+| Búsqueda, discos, playlists, mix y audio (NewPipeExtractor) | `app/.../YouTube.kt` |
+| La radio: cola, enganche, precarga del siguiente, saltear temas que fallan | `app/.../Radio.kt` |
+| Reproducción en segundo plano (Media3 MediaSession) | `app/.../PlaybackService.kt` |
+| Página y API para el celular (red local, puerto 8080) | `app/.../WebServer.kt`, `app/src/main/assets/web/index.html` |
+| Pantalla del tocadiscos (Compose) | `app/.../ui/` |
+| Mockups de diseño | `design/mockup/` |
+
+Las URLs de audio de YouTube vencen (~6 h) y quedan atadas a la IP: cada tema se resuelve justo antes
+de sonar. Tipografías: Young Serif, Familjen Grotesk y Big Shoulders Text (OFL, `docs/licencias/`).
 
 ## Docs
 

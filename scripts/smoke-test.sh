@@ -3,4 +3,4 @@
 # Uso: scripts/smoke-test.sh ["artista tema"]
 source "$(dirname "$0")/env.sh"
 cd "$ROOT"
-./gradlew :app:testDebugUnitTest --tests app.vinilotv.ExtractionSmokeTest -Pquery="${1:-}"
+./gradlew :app:testDebugUnitTest --tests "app.vinilotv.ExtractionSmokeTest" -Pquery="${1:-}"

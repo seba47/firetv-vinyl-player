@@ -38,6 +38,12 @@ dependencies {
     implementation(libs.newpipe.extractor)
     implementation(libs.okhttp)
     implementation(libs.media3.exoplayer)
+    implementation(libs.media3.session)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network)
+    implementation(libs.zxing.core)
+    implementation(libs.nanohttpd)
+    implementation(libs.lifecycle.compose)
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.foundation)
