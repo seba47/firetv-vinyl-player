@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vinilo · celular</title>
+<!--
+  Mockup de la página que sirve la tele en la red local (se abre escaneando el QR).
+  Buscar → elegir tema, disco o playlist → "Poner en la tele". También pausa y siguiente.
+  En demo.html se comunica con la tele por postMessage; en la app real será HTTP a la tele.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Familjen+Grotesk:wght@400;500&family=Big+Shoulders+Text:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  /* Layout: una columna para el pulgar. Arriba lo que suena (control remoto de bolsillo),
+     abajo el buscador. Mismo mundo oscuro y cálido que la tele, a propósito. */
+  :root {
+    color-scheme: dark;
+    --bg: #17120f;
+    --panel: #241b15;
+    --line: rgb(238 227 207 / .10);
+    --cream: #eee3cf;
+    --cream-2: rgb(238 227 207 / .64);
+    --cream-3: rgb(238 227 207 / .40);
+    --brass: #c2924f;
+    --brass-ink: #2a1a0c;
+    --f-display: "Young Serif", "Iowan Old Style", Georgia, serif;
+    --f-body: "Familjen Grotesk", "Helvetica Neue", Arial, sans-serif;
+    --f-engrave: "Big Shoulders Text", "Arial Narrow", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body { background: var(--bg); color: var(--cream); font: 16px/1.4 var(--f-body); -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 480px; margin: 0 auto; padding-inline: 18px; padding-block: calc(14px + env(safe-area-inset-top, 0px)) 120px; display: grid; gap: 22px; }
+  .engrave { font-family: var(--f-engrave); font-weight: 500; text-transform: uppercase; letter-spacing: .2em; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+  header { display: flex; align-items: center; justify-content: space-between; }
+  header .brand { font-family: var(--f-display); font-size: 22px; }
+  header .link { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--cream-3); }
+  header .dot { width: 8px; height: 8px; border-radius: 50%; background: #e8a54c; box-shadow: 0 0 8px rgb(232 165 76 / .7); }
+
+  /* Lo que suena en la tele */
+  #now { display: grid; grid-template-columns: 76px 1fr auto; gap: 14px; align-items: center; padding: 12px; border-radius: 14px; background: var(--panel); }
+  .cover { aspect-ratio: 1; max-width: 100%; border-radius: 6px; background: #3a2a1d center / auto 100% no-repeat; }
+  #now .cover { width: 76px; border-radius: 50%; box-shadow: 0 0 0 5px #0f0d0c, 0 0 0 6px #2a2522; }
+  #now.playing .cover { animation: spin 1.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { #now.playing .cover { animation: none; } }
+  #now .meta { min-width: 0; }
+  #now .seed { font-size: 12px; color: var(--brass); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #now .t { margin-top: 4px; font-family: var(--f-display); font-size: 18px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #now .a { font-size: 14px; color: var(--cream-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #now .ctrls { display: flex; gap: 4px; }
+  .icon-btn { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; }
+  .icon-btn:active { background: var(--line); }
+  .icon-btn svg { width: 22px; height: 22px; fill: var(--cream); }
+
+  /* Buscador */
+  .search { display: flex; align-items: center; gap: 10px; padding: 0 14px; height: 52px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); }
+  .search svg { width: 20px; height: 20px; fill: none; stroke: var(--cream-3); stroke-width: 2; flex: none; }
+  .search input { flex: 1; min-width: 0; height: 100%; background: none; border: 0; color: var(--cream); font: 17px var(--f-body); outline: none; }
+  .search input::placeholder { color: var(--cream-3); }
+
+  .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; border-radius: 12px; background: var(--panel); }
+  .tabs button { height: 40px; border-radius: 9px; font-size: 15px; color: var(--cream-2); }
+  .tabs button[aria-selected="true"] { background: var(--brass); color: var(--brass-ink); font-weight: 500; }
+
+  #results { list-style: none; display: grid; }
+  #results li button { width: 100%; display: grid; grid-template-columns: 56px 1fr auto; gap: 14px; align-items: center; padding: 10px 0; text-align: left; border-bottom: 1px solid var(--line); }
+  #results .cover { width: 56px; }
+  #results .cover.mosaic { display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; background: none; }
+  #results .cover.mosaic i { background: center / auto 100% no-repeat; }
+  #results .txt { min-width: 0; }
+  #results .t { font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #results .s { font-size: 14px; color: var(--cream-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #results .go { font-size: 13px; color: var(--brass); }
+  #empty { color: var(--cream-3); padding: 24px 0; text-align: center; }
+
+  /* Hoja para confirmar */
+  #sheet-bg { position: fixed; inset: 0; background: rgb(0 0 0 / .55); opacity: 0; pointer-events: none; transition: opacity 250ms; }
+  #sheet { position: fixed; left: 0; right: 0; bottom: 0; max-width: 480px; margin: 0 auto; padding: 22px 18px calc(22px + env(safe-area-inset-bottom, 0px));
+    border-radius: 20px 20px 0 0; background: #2a2019; transform: translateY(105%); transition: transform 320ms cubic-bezier(.3,.7,.2,1); display: grid; gap: 16px; }
+  .open #sheet { transform: none; } .open #sheet-bg { opacity: 1; pointer-events: auto; }
+  #sheet .head { display: grid; grid-template-columns: 96px 1fr; gap: 16px; align-items: center; }
+  #sheet .cover { width: 96px; }
+  #sheet .kind { font-size: 13px; color: var(--brass); }
+  #sheet h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; line-height: 1.15; margin-top: 4px; text-wrap: balance; }
+  #sheet .by { color: var(--cream-2); font-size: 15px; margin-top: 2px; }
+  #sheet p { color: var(--cream-2); font-size: 15px; line-height: 1.5; }
+  #sheet p b { color: var(--cream); font-weight: 500; }
+  .primary { height: 54px; border-radius: 14px; background: var(--brass); color: var(--brass-ink); font-weight: 500; font-size: 17px; }
+  .secondary { height: 46px; border-radius: 14px; color: var(--cream-2); }
+
+  #toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 16px); padding: 12px 18px; border-radius: 30px;
+    background: var(--cream); color: var(--brass-ink); font-size: 15px; font-weight: 500; opacity: 0; transition: opacity 250ms, transform 250ms; white-space: nowrap; }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="brand">Vinilo</span>
+    <span class="link"><span class="dot"></span>Conectado a la tele del living</span>
+  </header>
+
+  <section id="now" class="playing" aria-label="Sonando en la tele">
+    <div class="cover"></div>
+    <div class="meta">
+      <div class="seed engrave"></div>
+      <div class="t"></div>
+      <div class="a"></div>
+    </div>
+    <div class="ctrls">
+      <button class="icon-btn" id="btn-pause" aria-label="Pausa"><svg viewBox="0 0 24 24"><path d="M7 5h3v14H7zM14 5h3v14h-3z"/></svg></button>
+      <button class="icon-btn" id="btn-next" aria-label="Siguiente"><svg viewBox="0 0 24 24"><path d="M6 5l9 7-9 7zM16 5h3v14h-3z"/></svg></button>
+    </div>
+  </section>
+
+  <label class="search" for="q">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+    <input id="q" type="search" placeholder="Buscá un tema, disco o artista" autocomplete="off" enterkeyhint="search">
+  </label>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tab-song" data-kind="song" aria-selected="false">Temas</button>
+    <button role="tab" id="tab-album" data-kind="album" aria-selected="true">Discos</button>
+    <button role="tab" id="tab-playlist" data-kind="playlist" aria-selected="false">Playlists</button>
+  </div>
+
+  <ul id="results"></ul>
+  <div id="empty" hidden>No encontré nada con eso. Probá con el nombre del artista.</div>
+</div>
+
+<div id="sheet-bg"></div>
+<div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+  <div class="head">
+    <div class="cover" id="sheet-cover"></div>
+    <div><div class="kind engrave" id="sheet-kind"></div><h2 id="sheet-title"></h2><div class="by" id="sheet-by"></div></div>
+  </div>
+  <p id="sheet-text"></p>
+  <button class="primary" id="btn-play">Poner en la tele</button>
+  <button class="secondary" id="btn-cancel">Cancelar</button>
+</div>
+<div id="toast" role="status"></div>
+
+<script>
+  // Datos de ejemplo: en la app real salen de la búsqueda de YouTube Music que hace la tele.
+  const thumb = id => `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`;
+  const S = {
+    ligera:  { id: "sWft4cMiwXQ", t: "De Música Ligera", a: "Soda Stereo", len: 213 },
+    crimen:  { id: "YVXNPPdh6wE", t: "Crimen", a: "Gustavo Cerati", len: 230 },
+    hoteles: { id: "oMszTlYRxWg", t: "Demoliendo Hoteles", a: "Charly García", len: 188 },
+    mariposa:{ id: "xJCMt00NQ1Q", t: "Mariposa Tecknicolor", a: "Fito Páez", len: 264 },
+    matador: { id: "dKJM2ux3bF8", t: "Matador", a: "Los Fabulosos Cadillacs", len: 279 },
+    seguir:  { id: "VSWSnIcnoH4", t: "Seguir Viviendo Sin Tu Amor", a: "Luis Alberto Spinetta", len: 197 },
+  };
+  const albumTracks = (id, a, titles) => titles.map((t, i) => ({ id, t, a, len: 170 + (i * 41) % 130,
+    side: i < Math.ceil(titles.length / 2) ? "A" : "B", n: i < Math.ceil(titles.length / 2) ? i + 1 : i + 1 - Math.ceil(titles.length / 2) }));
+  const catalog = [
+    ...Object.values(S).map(s => ({ kind: "song", title: s.t, by: s.a, covers: [s.id], tracks: [s] })),
+    { kind: "album", title: "Canción Animal", by: "Soda Stereo · 1990", covers: ["sWft4cMiwXQ"],
+      tracks: albumTracks("sWft4cMiwXQ", "Soda Stereo", ["(En) El Séptimo Día", "Un Millón de Años Luz", "Canción Animal", "1990", "Hombre al Agua", "Cae el Sol", "Entre Caníbales", "Té para Tres", "Sueles Dejarme Solo", "De Música Ligera"]) },
+    { kind: "album", title: "Ahí Vamos", by: "Gustavo Cerati · 2006", covers: ["YVXNPPdh6wE"],
+      tracks: albumTracks("YVXNPPdh6wE", "Gustavo Cerati", ["Al Fin Sucede", "La Excepción", "Uno Entre 1000", "Caravana", "Crimen", "Adiós"]) },
+    { kind: "album", title: "Piano Bar", by: "Charly García · 1984", covers: ["oMszTlYRxWg"],
+      tracks: albumTracks("oMszTlYRxWg", "Charly García", ["Demoliendo Hoteles", "Raros Peinados Nuevos", "Tuve Tu Amor", "Promesas Sobre el Bidet", "Cerca de la Revolución", "Piano Bar"]) },
+    { kind: "album", title: "Circo Beat", by: "Fito Páez · 1994", covers: ["xJCMt00NQ1Q"],
+      tracks: albumTracks("xJCMt00NQ1Q", "Fito Páez", ["Circo Beat", "Mariposa Tecknicolor", "Tema de Piluso", "Normal 1", "El Jardín Donde Vos Ya No Estás"]) },
+    { kind: "playlist", title: "Rock nacional esencial", by: "Playlist · YouTube Music", covers: ["oMszTlYRxWg", "xJCMt00NQ1Q", "dKJM2ux3bF8", "sWft4cMiwXQ"],
+      tracks: [S.hoteles, S.mariposa, S.matador, S.ligera, S.crimen, S.seguir] },
+    { kind: "playlist", title: "Domingo tranqui", by: "Playlist · tuya de ejemplo", covers: ["VSWSnIcnoH4", "YVXNPPdh6wE", "xJCMt00NQ1Q", "sWft4cMiwXQ"],
+      tracks: [S.seguir, S.crimen, S.mariposa] },
+  ];
+  const KIND = { song: "Tema", album: "Disco", playlist: "Playlist" };
+
+  const $ = id => document.getElementById(id);
+  let kind = "album", picked = null;
+
+  const coverHtml = item => item.covers.length > 1
+    ? `<div class="cover mosaic">${item.covers.map(c => `<i style="background-image:url(${thumb(c)})"></i>`).join("")}</div>`
+    : `<div class="cover" style="background-image:url(${thumb(item.covers[0])})"></div>`;
+
+  function renderResults() {
+    const q = $("q").value.trim().toLowerCase();
+    const items = catalog.filter(c => c.kind === kind && (!q || (c.title + " " + c.by).toLowerCase().includes(q)));
+    $("results").innerHTML = items.map((c, i) =>
+      `<li><button data-i="${catalog.indexOf(c)}">${coverHtml(c)}<span class="txt"><div class="t">${c.title}</div><div class="s">${c.by}${c.kind !== "song" ? ` · ${c.tracks.length} temas` : ""}</div></span><span class="go">Poner</span></button></li>`).join("");
+    $("empty").hidden = items.length > 0;
+  }
+
+  function openSheet(item) {
+    picked = item;
+    $("sheet-cover").outerHTML = coverHtml(item).replace('class="cover', 'id="sheet-cover" class="cover');
+    $("sheet-kind").textContent = KIND[item.kind];
+    $("sheet-title").textContent = item.title;
+    $("sheet-by").textContent = item.by;
+    const what = item.kind === "song" ? "Suena <b>este tema</b>"
+      : item.kind === "album" ? `Suena <b>el disco entero</b>, en orden (${item.tracks.length} temas)`
+      : `Suena <b>la playlist</b> (${item.tracks.length} temas)`;
+    $("sheet-text").innerHTML = `${what} y después la tele <b>sigue enganchando temas parecidos al azar</b>, sin parar.`;
+    document.body.classList.add("open");
+    $("btn-play").focus();
+  }
+  const closeSheet = () => document.body.classList.remove("open");
+
+  const send = msg => { if (parent !== window) parent.postMessage(msg, "*"); };
+  let toastTimer;
+  function toast(text) { const t = $("toast"); t.textContent = text; t.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 2200); }
+
+  document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => {
+    kind = b.dataset.kind;
+    document.querySelectorAll(".tabs button").forEach(x => x.setAttribute("aria-selected", x === b));
+    renderResults();
+  }));
+  $("q").addEventListener("input", renderResults);
+  $("results").addEventListener("click", e => { const b = e.target.closest("button[data-i]"); if (b) openSheet(catalog[+b.dataset.i]); });
+  $("sheet-bg").addEventListener("click", closeSheet);
+  $("btn-cancel").addEventListener("click", closeSheet);
+  $("btn-play").addEventListener("click", () => {
+    const seedName = picked.kind === "album" ? `${picked.title} · ${picked.by.split(" · ")[1]}` : picked.title;
+    send({ type: "play", seed: { kind: KIND[picked.kind], name: seedName, tracks: picked.tracks } });
+    closeSheet(); toast(`Listo: ${picked.title} en la tele`);
+  });
+  $("btn-pause").addEventListener("click", () => send({ type: "pause" }));
+  $("btn-next").addEventListener("click", () => send({ type: "next" }));
+
+  // Estado que reporta la tele (en demo.html). Sin tele, muestra un ejemplo.
+  function showNow({ now, seed, playing }) {
+    $("now").querySelector(".cover").style.backgroundImage = `url(${thumb(now.id)})`;
+    $("now").querySelector(".seed").textContent = now.auto ? `Enganchando · parecidos a ${seed.name.split(" · ")[0]}` : `${seed.kind} · ${seed.name}`;
+    $("now").querySelector(".t").textContent = now.t;
+    $("now").querySelector(".a").textContent = now.a;
+    $("now").classList.toggle("playing", playing);
+    $("btn-pause").setAttribute("aria-label", playing ? "Pausa" : "Seguir");
+    $("btn-pause").innerHTML = playing ? '<svg viewBox="0 0 24 24"><path d="M7 5h3v14H7zM14 5h3v14h-3z"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z"/></svg>';
+  }
+  addEventListener("message", e => { if (e.data && e.data.type === "now") showNow(e.data); });
+  showNow({ now: S.ligera, seed: { kind: "Disco", name: "Canción Animal · 1990" }, playing: true });
+  renderResults();
+</script>
+</body>
+</html>

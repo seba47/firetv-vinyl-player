@@ -48,13 +48,18 @@ radio. Uso personal, sin publicar en ninguna tienda (sideload).
    del control, "Alexa, pausa" desde el control).
 2. **El tocadiscos**: animación del disco, brazo, tapa como etiqueta, paleta. Hacer un mockup
    visual antes de programarlo.
-3. **Elegir qué suena**: estaciones guardadas (definir cómo, ver preguntas abiertas).
+3. **Elegir qué suena**: búsqueda desde el celular vía QR (ver pregunta 2) + estaciones recientes.
 4. **Pulido**: recuperación de errores (saltear temas que fallan), reconexión, cómo actualizar
    NewPipeExtractor, README de instalación.
 
 ## Preguntas abiertas (preguntarme antes de avanzar en lo que dependa de ellas)
 1. ~~Modelo exacto del Fire TV~~ → confirmado (ver arriba).
-2. ¿Cómo elegir qué suena? Unas pocas estaciones fijas armadas una vez, o poder buscar desde la tele.
+2. ~~¿Cómo elegir qué suena?~~ → **decidido**: se busca **desde el celular**. La tele muestra un QR
+   → página web que sirve la propia app en la red local → se busca en YT Music y se elige un
+   **tema, un disco o una playlist** como semilla. Suena la semilla (disco/playlist en orden) y
+   cuando termina **sigue enganchando al azar** temas parecidos (mix de YT Music `RDAMVM<id>` /
+   relacionados de lo último que sonó, sin repetir). El celular es solo el teclado: la música no
+   depende de él. Las semillas usadas quedan como estaciones recientes (↑/↓ en el control).
 3. ¿Hace falta mi biblioteca personal de YT Music (playlists, me gusta) o alcanza con búsqueda +
    radios públicas? NewPipeExtractor no usa login.
 

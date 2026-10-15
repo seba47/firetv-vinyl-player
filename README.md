@@ -14,6 +14,7 @@ scripts/firetv-connect.sh 192.168.x.y        # una vez: conecta adb al Fire TV (
 scripts/install.sh "Cerati Crimen"           # compila, instala y abre buscando eso
 scripts/play.sh "Spinetta"                   # cambia lo que suena sin reinstalar
 scripts/logs.sh                              # logs de la app
+scripts/mockup.sh                            # mockups de diseño: http://localhost:8765/demo.html
 ```
 
 Control remoto (spike): **derecha** = siguiente resultado, **centro** = pausa.

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vinilo · tele y celular</title>
+<!-- Demo de los dos mockups juntos: lo que elegís en el celular suena en la tele.
+     Hacé click en la tele para usar el teclado como control remoto (M abre el QR). -->
+<style>
+  :root { color-scheme: dark; --bg: #0e0b09; --cream-3: rgb(238 227 207 / .4); }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body { background: var(--bg); color: var(--cream-3); font: 13px/1.4 "Helvetica Neue", Arial, sans-serif;
+    display: flex; gap: 28px; align-items: center; justify-content: center; padding: 24px; }
+  .tv { flex: 1; max-width: 1280px; aspect-ratio: 16 / 9; min-width: 0; border: 10px solid #050404; border-radius: 10px; box-shadow: 0 30px 60px rgb(0 0 0 / .6); }
+  .phone { flex: none; width: 300px; height: 620px; border: 10px solid #050404; border-radius: 40px; overflow: hidden; box-shadow: 0 30px 60px rgb(0 0 0 / .6); }
+  .phone iframe { width: 390px; height: 806px; transform: scale(.7436); transform-origin: 0 0; }
+  iframe { border: 0; display: block; width: 100%; height: 100%; background: #000; }
+  figure { display: grid; gap: 10px; justify-items: center; }
+  figcaption { letter-spacing: .08em; }
+  @media (max-width: 900px) { body { flex-direction: column; } .tv { width: 100%; flex: none; } }
+</style>
+</head>
+<body>
+  <figure style="flex:1;max-width:1280px;min-width:0"><div class="tv" style="width:100%"><iframe id="tv" src="index.html" title="Tele"></iframe></div>
+    <figcaption>Tele · → siguiente · Enter pausa · ↑↓ estación · M elegir música</figcaption></figure>
+  <figure><div class="phone"><iframe id="phone" src="celular.html" title="Celular"></iframe></div>
+    <figcaption>Celular (abierto desde el QR)</figcaption></figure>
+<script>
+  const tv = document.getElementById("tv").contentWindow;
+  const phone = document.getElementById("phone").contentWindow;
+  addEventListener("message", e => {
+    if (e.source === phone) tv.postMessage(e.data, "*");
+    else if (e.source === tv) phone.postMessage(e.data, "*");
+  });
+</script>
+</body>
+</html>
