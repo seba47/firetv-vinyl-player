@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -93,12 +94,12 @@ internal fun CrateView(open: Boolean, items: List<CrateItem>, index: Int, pickin
         // discos: solo los que se ven (dos volcados adelante y siete atrás)
         val lo = (index - 3).coerceAtLeast(0)
         val hi = (index + 8).coerceAtMost(items.lastIndex)
-        for (i in lo..hi) {
+        for (i in lo..hi) key(i, sleeveKey(items[i])) {          // cada funda atada a su disco (si no, reusa la imagen de otra)
             val item = items[i]
             val h = if (item is CrateItem.Divider) DIVIDER_H else SLEEVE
             val key = sleeveKey(item)
             val img by produceState(cache[key], key) {
-                if (value == null) value = bakeSleeveFor(context, item, (SLEEVE * k).toInt(), (h * k).toInt())?.also { cache[key] = it }
+                value = cache[key] ?: bakeSleeveFor(context, item, (SLEEVE * k).toInt(), (h * k).toInt())?.also { cache[key] = it }
             }
             val d = i - cursor
             val tilt = (abs(key.hashCode()) % 25 - 12) / 10f                 // cada funda apenas torcida
