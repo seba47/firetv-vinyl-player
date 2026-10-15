@@ -1,0 +1,750 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vinilo TV · caja de discos</title>
+<!--
+  CAJA DE DISCOS (maqueta para elegir entre dos opciones). Sobre el tocadiscos colgado (fondo estufa).
+    ↓  abre la caja / el estante      ← →  revolver (en el estante también ↑ ↓)
+    OK pone el disco                   Atrás (o ↑ en el borde) cierra        C  alterna caja ↔ estante
+  ?op=caja | ?op=estante en la URL elige la opción. Tapas: búsqueda real en YouTube Music.
+
+  FONDO ESTUFA (maqueta para revisar). Variantes de fondo para que la tele se funda con la estufa de
+  yeso donde está colgada: F cambia de variante, [ y ] ajustan el brillo del yeso.
+    actual   · el living oscuro de siempre
+    embudo   · centro oscuro con forma de embudo invertido (sigue la columna de la estufa), costados de yeso
+    yeso     · toda la pantalla de yeso, el tocadiscos apoyado sobre la pared
+    columna  · al revés: el yeso sigue la columna por el centro y los costados quedan oscuros
+    colgado  · todo yeso, con el tocadiscos colgado en la pared (de frente, sin perspectiva)
+  También acepta #embudo, #yeso, #columna en la URL.
+
+  Mockup de la pantalla de la tele (fase 2). Escenario fijo de 1920x1080 (lo que dibuja el Fire TV
+  a 1080p) escalado a la ventana. Teclado = control remoto:
+    →  siguiente      Enter/Espacio  pausa      ↑ / ↓  estaciones recientes      M  elegir música (QR)
+  Versión "vistosa": luz ambiente con la tapa, cambio de disco animado, púa que aterriza y modo
+  salvapantallas tras 20 s sin tocar nada (en la tele real serían unos minutos).
+  También recibe órdenes del celular por postMessage (ver celular.html y demo.html).
+  Las tapas son miniaturas de YouTube Music (tapa cuadrada centrada en un 16:9).
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Familjen+Grotesk:wght@400;500&family=Big+Shoulders+Text:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  /* Layout: tocadiscos en perspectiva a la izquierda (lo único audaz); a la derecha, columna de
+     lectura desde el sillón. Un solo mundo visual oscuro y cálido: es una tele en un living. */
+  :root {
+    color-scheme: dark;
+    --room: #1b1613;          /* grafito cálido del fondo */
+    --walnut: #5b3b25;        /* nogal del gabinete */
+    --walnut-deep: #2e1c10;
+    --cream: #eee3cf;         /* texto */
+    --brass: #c2924f;         /* latón: estación, progreso, detalles */
+    --vinyl: #111010;
+    --cream-2: rgb(238 227 207 / 0.64);
+    --cream-3: rgb(238 227 207 / 0.36);
+    --cream-4: rgb(238 227 207 / 0.14);
+    --f-display: "Young Serif", "Iowan Old Style", Georgia, serif;
+    --f-body: "Familjen Grotesk", "Helvetica Neue", Arial, sans-serif;
+    --f-engrave: "Big Shoulders Text", "Arial Narrow", "Helvetica Neue", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #000; overflow: hidden; }
+  body { font-family: var(--f-body); color: var(--cream); }
+
+  #stage {
+    position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; transform-origin: 0 0;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse 60% 75% at 30% 58%, rgb(150 95 50 / 0.16), transparent 70%),
+      radial-gradient(ellipse at center, transparent 50%, rgb(0 0 0 / 0.6) 100%),
+      var(--room);
+  }
+  /* grano de película muy suave sobre todo */
+  #stage::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .05; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* Luz ambiente: la tapa que suena, enorme y desenfocada, tiñe el living. */
+  #ambient { position: absolute; inset: -12%; pointer-events: none; }
+  #ambient i { position: absolute; inset: 0; background: center / cover no-repeat; filter: blur(120px) saturate(1.35);
+    opacity: 0; transform: scale(1.15); transition: opacity 1800ms ease; }
+  #ambient i.on { opacity: .42; }
+  #ambient::after { content: ""; position: absolute; inset: 0;
+    background: radial-gradient(ellipse 70% 80% at 32% 55%, rgb(27 22 19 / .15), rgb(27 22 19 / .78) 80%); }
+
+  /* ---------- Tocadiscos ---------- */
+  #deck { position: absolute; left: 80px; top: 120px; width: 1000px; height: 860px; perspective: 1800px; perspective-origin: 50% -20%;
+    transition: transform 2600ms cubic-bezier(.4,.1,.2,1); }
+  #plinth {
+    position: absolute; inset: 0; transform: rotateX(24deg); transform-origin: 50% 100%; border-radius: 20px;
+    background:
+      repeating-linear-gradient(92deg, transparent 0 7px, rgb(0 0 0 / .07) 7px 9px, rgb(255 220 180 / .03) 9px 13px),
+      repeating-linear-gradient(88deg, rgb(0 0 0 / .05) 0 31px, rgb(255 230 200 / .035) 31px 47px),
+      linear-gradient(160deg, var(--walnut), #452b1a 55%, var(--walnut-deep));
+    box-shadow: inset 0 2px 0 rgb(255 220 180 / .12), inset 0 -14px 0 #22150c, 0 60px 80px -20px rgb(0 0 0 / .75), 0 20px 30px rgb(0 0 0 / .4);
+  }
+  #platter {
+    position: absolute; left: 60px; top: 70px; width: 720px; height: 720px; border-radius: 50%;
+    background: radial-gradient(circle, #3b3734 0 60%, #6d6862 66%, #2a2725 69%, #8c867e 70%, #3a3633 71.5%);
+    box-shadow: 0 18px 30px rgb(0 0 0 / .55), 0 0 0 2px rgb(0 0 0 / .5);
+  }
+  #disc { position: absolute; inset: 0; transition: transform 480ms cubic-bezier(.5,0,.3,1), opacity 480ms ease; }
+  #disc.away { transform: translate(-60px, -90px) scale(1.06); opacity: 0; }
+  .playing #platter { animation: wobble 1.8s linear infinite; }
+  @keyframes wobble { 0%, 100% { translate: 0 0; } 25% { translate: .6px -.4px; } 50% { translate: 0 .7px; } 75% { translate: -.6px -.3px; } }
+  #record {
+    position: absolute; inset: 14px; border-radius: 50%; will-change: transform;
+    background:
+      repeating-radial-gradient(circle, rgb(255 255 255 / .025) 0 1px, transparent 1px 3px),
+      radial-gradient(circle, #1a1717 0 34%, var(--vinyl) 35%, #171414 62%, #0e0c0c 63%, var(--vinyl) 64% 96%, #1b1818 97%, #0a0909 100%);
+    box-shadow: 0 0 0 1px rgb(0 0 0 / .8);
+  }
+  #label {
+    position: absolute; left: 50%; top: 50%; width: 33%; height: 33%; transform: translate(-50%, -50%); border-radius: 50%;
+    background-color: #3a2a1d; background-repeat: no-repeat; background-size: auto 100%; background-position: center;
+    box-shadow: 0 0 0 3px rgb(0 0 0 / .6), inset 0 0 24px rgb(0 0 0 / .35);
+  }
+  #spindle { position: absolute; left: 50%; top: 50%; width: 16px; height: 16px; transform: translate(-50%, -50%); border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #f2e6cf, #9a8f80 60%, #4d463e); box-shadow: 0 1px 2px rgb(0 0 0 / .8); }
+  #sheen {
+    position: absolute; inset: 14px; border-radius: 50%; pointer-events: none;
+    background: conic-gradient(from 300deg, transparent 0deg, rgb(255 245 230 / .10) 25deg, transparent 55deg, transparent 180deg, rgb(255 245 230 / .06) 205deg, transparent 235deg);
+    -webkit-mask: radial-gradient(circle, transparent 0 17%, #000 18% 98%, transparent 99%);
+            mask: radial-gradient(circle, transparent 0 17%, #000 18% 98%, transparent 99%);
+  }
+  /* Brazo: lo mueve un resorte en JS (giro y altura por separado), sin transiciones CSS.
+     Altura 0 = púa apoyada, 1 = levantado: escala apenas desde el pivote y la sombra se aleja. */
+  #arm { position: absolute; left: 870px; top: 120px; }
+  #arm .base { position: absolute; left: -54px; top: -54px; width: 108px; height: 108px; border-radius: 50%;
+    background: radial-gradient(circle, #1c1815 0 42%, #3f3833 45%, #1d1916 58%, #302a25 100%); box-shadow: 0 10px 18px rgb(0 0 0 / .55); }
+  #arm .lift { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform, filter; }
+  #arm .counterweight { position: absolute; left: -22px; top: -120px; width: 44px; height: 66px; border-radius: 8px;
+    background: repeating-linear-gradient(0deg, rgb(0 0 0 / .2) 0 2px, transparent 2px 6px), linear-gradient(90deg, #25201d, #5d554e 38%, #342e2a 70%, #1c1815); }
+  #arm .counterweight::after { content: ""; position: absolute; left: 6px; right: 6px; bottom: -14px; height: 16px; background: linear-gradient(90deg, #6f6a64, #d6d0c7, #6f6a64); }
+  #arm .tube { position: absolute; left: -6px; top: 0; width: 12px; height: 566px; border-radius: 6px; transform-origin: 6px 0; transform: rotate(14deg);
+    background: linear-gradient(90deg, #77726b, #f6f2eb 34%, #c3bdb4 52%, #8d8881 78%, #5c5752); }
+  #arm .head { position: absolute; left: -27px; top: 552px; width: 54px; height: 92px; transform: rotate(-22deg); transform-origin: 50% 0; }
+  #arm .shell { position: absolute; left: 0; right: 0; top: 0; height: 74px; clip-path: polygon(34% 0, 66% 0, 100% 100%, 0 100%);
+    background: linear-gradient(90deg, #8c867f, #ece7df 44%, #a69f97 70%, #6a655f); }
+  #arm .cart { position: absolute; left: 8px; right: 8px; top: 50px; height: 36px; border-radius: 3px 3px 5px 5px;
+    background: linear-gradient(180deg, #342e2a, #121010); box-shadow: inset 0 1px 0 rgb(255 255 255 / .08); }
+  #arm .cart::before { content: ""; position: absolute; left: 7px; right: 7px; top: 9px; height: 4px; border-radius: 2px; background: rgb(194 146 79 / .7); }
+  #arm .cart::after { content: ""; position: absolute; left: 50%; bottom: -7px; width: 2px; height: 9px; margin-left: -1px; border-radius: 1px; background: #e2dbcf; } /* púa */
+  #arm .finger { position: absolute; right: -24px; top: 34px; width: 30px; height: 5px; border-radius: 3px; transform: rotate(-14deg);
+    background: linear-gradient(90deg, #8c6a37, #e8c48d); }
+  #arm .pivot { position: absolute; left: -34px; top: -34px; width: 68px; height: 68px; border-radius: 50%;
+    background: radial-gradient(circle at 38% 32%, #f0d29f, var(--brass) 42%, #6b4c25 100%); box-shadow: inset 0 -3px 6px rgb(0 0 0 / .35), 0 4px 8px rgb(0 0 0 / .4); }
+  #arm .pivot::after { content: ""; position: absolute; inset: 20px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #48403a, #191512); }
+  /* Palanca de elevación (cue): sube cuando el brazo se levanta. */
+  #cue { position: absolute; left: 936px; top: 196px; width: 12px; height: 50px; border-radius: 6px; transform-origin: 6px 44px;
+    background: linear-gradient(90deg, #2a2522, #5f574f, #2a2522); box-shadow: 0 6px 8px rgb(0 0 0 / .45); }
+  #cue::before { content: ""; position: absolute; left: -5px; top: -12px; width: 22px; height: 16px; border-radius: 8px;
+    background: radial-gradient(circle at 40% 35%, #f0d29f, var(--brass) 55%, #6b4c25); }
+  #rest { position: absolute; left: 722px; top: 580px; width: 46px; height: 62px; border-radius: 10px 10px 8px 8px;
+    background: linear-gradient(90deg, #2a2522, #4a433d, #2a2522); box-shadow: 0 8px 12px rgb(0 0 0 / .5); }
+  #knob { position: absolute; left: 70px; bottom: 50px; width: 64px; height: 64px; border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #4a433d, #1f1b18); box-shadow: 0 6px 10px rgb(0 0 0 / .5); }
+  #knob::after { content: ""; position: absolute; left: 30px; top: 8px; width: 4px; height: 16px; border-radius: 2px; background: var(--brass); }
+  .engrave { font-family: var(--f-engrave); font-weight: 500; text-transform: uppercase; letter-spacing: .24em; }
+  #rpm { position: absolute; left: 152px; bottom: 74px; font-size: 20px; color: rgb(238 227 207 / .5); }
+  #pilot { position: absolute; left: 154px; bottom: 54px; width: 10px; height: 10px; border-radius: 50%;
+    background: #e8a54c; box-shadow: 0 0 10px 2px rgb(232 165 76 / .6); transition: opacity 400ms; }
+  .paused #pilot { opacity: .2; }
+
+  /* ---------- Columna de lectura ---------- */
+  #info { position: absolute; left: 1160px; top: 168px; width: 680px; transition: opacity 400ms; }
+  #seed { display: flex; align-items: baseline; gap: 16px; font-size: 24px; color: var(--brass); }
+  #seed .kind { font-weight: 700; flex: none; }
+  #seed .name { color: rgb(194 146 79 / .78); letter-spacing: .14em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  #title { margin-top: 30px; font-family: var(--f-display); font-size: 78px; line-height: 1.04; letter-spacing: -.01em; text-wrap: balance;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  #artist { margin-top: 20px; font-family: var(--f-display); font-size: 42px; color: var(--cream-2); }
+  #side { margin-top: 26px; font-size: 20px; color: var(--cream-3); min-height: 24px; }
+  #progress { margin-top: 30px; display: flex; align-items: center; gap: 20px; font-size: 20px; color: var(--cream-3); font-variant-numeric: tabular-nums; }
+  #bar { flex: 1; height: 3px; border-radius: 2px; background: var(--cream-4); overflow: hidden; }
+  #bar > div { height: 100%; width: 0; background: var(--brass); }
+  #state { margin-top: 16px; height: 24px; font-size: 20px; color: #e3bd85; opacity: 0; transition: opacity 300ms; }
+  .paused #state { opacity: 1; }
+
+  #queue { margin-top: 64px; }
+  #queue h3 { font-size: 18px; color: var(--cream-3); margin-bottom: 14px; font-weight: 500; }
+  #queue ol { list-style: none; display: grid; gap: 4px; }
+  #queue li { display: grid; grid-template-columns: 52px 1fr; align-items: center; gap: 18px; padding: 8px 0; font-size: 24px; color: var(--cream-2); }
+  #queue li .thumb { width: 52px; height: 52px; border-radius: 3px; background-size: auto 100%; background-position: center; opacity: .85; }
+  #queue li .a { color: var(--cream-3); }
+  #queue li .t { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #queue li.shuffle { color: var(--brass); }
+  #queue li.shuffle .thumb { display: grid; place-items: center; background: var(--cream-4); font-size: 26px; }
+
+  #hints { position: absolute; right: 80px; bottom: 50px; display: flex; gap: 34px; font-size: 18px; color: rgb(238 227 207 / .3); }
+  #hints b { font-weight: 500; color: rgb(238 227 207 / .5); margin-right: 8px; }
+
+  /* ---------- Panel "Elegí qué suena" (QR) ---------- */
+  #picker {
+    position: absolute; top: 0; right: 0; bottom: 0; width: 780px; padding: 150px 90px 0 120px;
+    background: linear-gradient(90deg, rgb(22 18 15 / 0) 0, rgb(22 18 15 / .97) 110px);
+    transform: translateX(100%); transition: transform 600ms cubic-bezier(.3,.7,.2,1);
+  }
+  .picking #picker { transform: none; }
+  .picking #info { opacity: 0; }
+  #picker h2 { font-family: var(--f-display); font-weight: 400; font-size: 60px; line-height: 1.05; }
+  #picker p { margin-top: 18px; font-size: 24px; line-height: 1.45; color: var(--cream-2); max-width: 30ch; }
+  #sleeve { margin-top: 44px; display: grid; grid-template-columns: 260px 1fr; gap: 36px; align-items: center; }
+  #qr { width: 260px; height: 260px; padding: 18px; border-radius: 6px; background: var(--cream); box-shadow: 0 20px 40px rgb(0 0 0 / .5); }
+  #qr canvas { width: 100%; height: 100%; image-rendering: pixelated; display: block; }
+  #sleeve .url { font-size: 22px; color: var(--cream-3); line-height: 1.5; }
+  #sleeve .url b { display: block; font-weight: 500; color: var(--brass); font-size: 26px; margin-top: 6px; }
+  #recent { margin-top: 64px; }
+  #recent h3 { font-size: 18px; color: var(--cream-3); margin-bottom: 14px; font-weight: 500; }
+  #recent li { list-style: none; display: flex; gap: 16px; align-items: baseline; padding: 9px 0; font-size: 24px; color: var(--cream-3); }
+  #recent li .k { font-family: var(--f-engrave); font-size: 17px; letter-spacing: .2em; text-transform: uppercase; color: var(--brass); width: 104px; flex: none; }
+  #recent li.on { color: var(--cream); }
+
+  #toast { position: absolute; left: 50%; bottom: 120px; transform: translate(-50%, 20px); padding: 16px 28px; border-radius: 40px;
+    background: rgb(46 34 26 / .95); color: var(--cream); font-size: 24px; opacity: 0; transition: opacity 300ms, transform 300ms; box-shadow: 0 10px 30px rgb(0 0 0 / .5); }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  .fade { transition: opacity 450ms ease, transform 600ms cubic-bezier(.2,.7,.2,1); }
+  .fade.out { opacity: 0; transform: translateY(14px); }
+
+  /* Modo salvapantallas: queda el tocadiscos al centro, apenas un epígrafe; todo deriva despacio. */
+  #caption { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); text-align: center; opacity: 0; transition: opacity 1800ms ease; }
+  #caption .t { font-family: var(--f-display); font-size: 34px; }
+  #caption .a { margin-top: 6px; font-size: 18px; color: var(--cream-3); }
+  #info, #hints { transition: opacity 1200ms ease; }
+  .idle #info, .idle #hints { opacity: 0; }
+  .idle #caption { opacity: 1; }
+  .idle #deck { transform: translate(380px, -40px) scale(.94); }
+  .idle #deck #plinth { animation: drift 40s ease-in-out infinite alternate; }
+  @keyframes drift { from { translate: -30px 0; } to { translate: 30px -16px; } }
+  @media (prefers-reduced-motion: reduce) { #picker, .fade, #deck, #disc { transition: none; } .playing #platter, .idle #deck #plinth { animation: none; } }
+
+  /* ---------- Fondo estufa: yeso ---------- */
+  :root { --plaster: #cfc8ba; --plaster-shade: #a9a193; --ink: #3b2f26; --ink-2: rgb(59 47 38 / .62); }
+  .plaster {
+    position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 900ms ease;
+    background:
+      radial-gradient(ellipse 60% 50% at 30% 20%, rgb(255 255 255 / .10), transparent 70%),
+      linear-gradient(180deg, rgb(255 250 240 / .06), rgb(0 0 0 / .10)),
+      var(--plaster);
+  }
+  /* textura: manchas grandes del revoque + grano fino */
+  .plaster::before, .plaster::after { content: ""; position: absolute; inset: 0; mix-blend-mode: multiply; }
+  .plaster::before { opacity: .22; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.008' numOctaves='3' seed='4'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3C/svg%3E"); background-size: 600px 600px; }
+  .plaster::after { opacity: .12; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' seed='9'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"); }
+  /* embudo invertido: la columna de la estufa ocupa ~28%..70% arriba y se abre hasta pasar los bordes abajo */
+  #wall-left  { clip-path: polygon(0 0, 26.6% 0, -5.6% 100%, 0 100%); }
+  #wall-right { clip-path: polygon(73.1% 0, 100% 0, 100% 100%, 105.6% 100%); }
+  #wall-full  { }
+  #wall-col   { clip-path: polygon(26.6% 0, 73.1% 0, 105.6% 100%, -5.6% 100%); }
+  /* sombra suave donde el yeso se encuentra con el hueco oscuro */
+  #wall-edges { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 900ms; }
+  #wall-edges svg { width: 100%; height: 100%; display: block; }
+  /* caras de la estufa: el lado derecho un poco en sombra, como en la foto */
+  #wall-full .face { position: absolute; inset: 0; clip-path: polygon(73.1% 0, 100% 0, 100% 100%, 105.6% 100%); background: linear-gradient(90deg, rgb(0 0 0 / .10), rgb(0 0 0 / .04)); }
+  #wall-full .face.l { clip-path: polygon(0 0, 26.6% 0, -5.6% 100%, 0 100%); background: linear-gradient(270deg, rgb(255 255 255 / .05), rgb(0 0 0 / .03)); }
+
+  .mode-embudo #wall-left, .mode-embudo #wall-right, .mode-embudo #wall-edges { opacity: 1; }
+  .mode-yeso #wall-full { opacity: 1; }
+  .mode-yeso #ambient { opacity: 0; }
+  .mode-columna #wall-col { opacity: 1; }
+  #ambient { transition: opacity 900ms; }
+
+  /* en los modos estufa la composición es centrada (como el salvapantallas): el embudo es angosto arriba */
+  .centered #deck { transform: translate(380px, -60px) scale(.94); }
+  .centered #info, .centered #hints { opacity: 0; }
+  .centered #caption { opacity: 1; bottom: 54px; }
+  #caption .seedline { font-family: var(--f-engrave); font-weight: 500; text-transform: uppercase; letter-spacing: .24em; font-size: 18px; color: var(--brass); margin-bottom: 10px; }
+  #caption .t { font-size: 44px; }
+  .mode-yeso #caption .t, .mode-columna #caption .t { color: var(--ink); }
+  .mode-yeso #caption .a, .mode-columna #caption .a { color: var(--ink-2); }
+  .mode-yeso #caption .seedline, .mode-columna #caption .seedline { color: #8a5f2c; }
+  /* sobre el yeso el gabinete tira sombra en la pared */
+  .mode-yeso #plinth { box-shadow: inset 0 2px 0 rgb(255 220 180 / .12), inset 0 -14px 0 #22150c, 0 50px 70px -20px rgb(60 45 30 / .55), 0 16px 26px rgb(60 45 30 / .35); }
+
+  /* colgado: de frente, separado unos centímetros de la pared, con tornillos de latón */
+  .hung #plinth { transform: none; transition: transform 900ms ease;
+    box-shadow: inset 0 2px 0 rgb(255 220 180 / .12), inset 0 -10px 0 #22150c, 0 38px 46px -12px rgb(60 45 30 / .55), 0 12px 20px rgb(60 45 30 / .35); }
+  #plinth { transition: transform 900ms ease; }
+  .hung.centered #deck { transform: translate(380px, -36px) scale(.8); }
+  #plinth .screw { position: absolute; top: 26px; width: 22px; height: 22px; border-radius: 50%; opacity: 0; transition: opacity 600ms;
+    background: radial-gradient(circle at 38% 35%, #f0d29f, #c2924f 50%, #6b4c25); box-shadow: 0 2px 3px rgb(0 0 0 / .5); }
+  #plinth .screw::after { content: ""; position: absolute; left: 4px; right: 4px; top: 10px; height: 2px; background: rgb(60 40 20 / .7); transform: rotate(35deg); }
+  #plinth .screw.l { left: 26px; } #plinth .screw.r { right: 26px; }
+  .hung #plinth .screw { opacity: 1; }
+  #modetag { position: absolute; left: 50%; top: 40px; transform: translateX(-50%); padding: 12px 24px; border-radius: 30px;
+    background: rgb(30 23 18 / .85); color: var(--cream); font: 500 22px var(--f-body); opacity: 0; transition: opacity 400ms; }
+  #modetag.show { opacity: 1; }
+
+  /* ================= CAJA DE DISCOS ================= */
+  .kraft { background: linear-gradient(160deg, #b99467, #9c774c 60%, #8a6640); }
+  #picker-hint { position: absolute; right: 80px; bottom: 50px; font: 400 18px var(--f-body); color: rgb(59 47 38 / .55); }
+  #picker-hint b { font-weight: 500; color: rgb(59 47 38 / .8); margin-right: 8px; }
+  .browsing #caption, .browsing #picker-hint { opacity: 0; }
+  #caption, #picker-hint { transition: opacity 400ms; }
+
+  /* ---- opción CAJA: cajón de madera abajo, discos parados, se revuelve hacia adelante ---- */
+  #crate { position: absolute; left: 50%; bottom: 0; width: 760px; height: 420px; margin-left: -380px;
+    transform: translateY(110%); transition: transform 700ms cubic-bezier(.3,.7,.2,1); perspective: 1400px; }
+  .op-caja.browsing #crate { transform: none; }
+  .op-estante #crate { visibility: hidden; }
+  #stage #deck { transition: transform 900ms cubic-bezier(.3,.7,.2,1); }
+  .op-caja.browsing #deck { transform: translate(380px, -262px) scale(.5) !important; }
+  #crate .inside { position: absolute; left: 34px; right: 34px; bottom: 150px; height: 60px; border-radius: 6px 6px 0 0;
+    background: linear-gradient(#1c130c, #2b1d12); }
+  #crate .sleeve { position: absolute; left: 50%; bottom: 60px; width: 300px; height: 300px; margin-left: -150px; border-radius: 3px;
+    background: #3a2a1d center / cover no-repeat; transform-origin: 50% 100%;
+    box-shadow: 0 -2px 0 rgb(255 255 255 / .08) inset, 0 -8px 18px rgb(0 0 0 / .35);
+    transition: transform 520ms cubic-bezier(.3,.7,.2,1), filter 520ms, opacity 520ms; }
+  #crate .sleeve.divider { height: 316px; background: linear-gradient(160deg, #c9a679, #a9845a); }
+  #crate .sleeve.divider .tab { position: absolute; top: -34px; left: 26px; padding: 8px 18px 10px; border-radius: 6px 6px 0 0;
+    background: #c9a679; font: 700 18px var(--f-engrave); letter-spacing: .2em; text-transform: uppercase; color: #4a3220; }
+  #crate .sleeve.divider .big { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 30px;
+    font: 400 32px var(--f-display); color: #4a3220; }
+  #crate .sleeve.surprise { background: linear-gradient(160deg, #b99467, #8a6640); }
+  #crate .sleeve.surprise::after { content: "?"; position: absolute; inset: 0; display: grid; place-items: center;
+    font: 400 150px var(--f-display); color: rgb(74 50 32 / .55); }
+  #crate .sleeve .hole { position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; margin: -15px; border-radius: 50%; background: rgb(0 0 0 / .0); }
+  #crate .front { position: absolute; left: 0; right: 0; bottom: 0; height: 160px; border-radius: 10px 10px 0 0;
+    background:
+      repeating-linear-gradient(90deg, transparent 0 9px, rgb(0 0 0 / .06) 9px 11px, rgb(255 220 180 / .03) 11px 17px),
+      linear-gradient(180deg, #6a4529, #4a2f1b 70%, #3a2414);
+    box-shadow: 0 -6px 22px rgb(0 0 0 / .45), inset 0 3px 0 rgb(255 220 180 / .18); }
+  #crate .front .hand { position: absolute; left: 50%; top: 26px; width: 150px; height: 26px; margin-left: -75px; border-radius: 13px;
+    background: #2a1a0f; box-shadow: inset 0 3px 6px rgb(0 0 0 / .7); }
+  #crate .front .brand { position: absolute; left: 0; right: 0; top: 74px; text-align: center; font: 500 20px var(--f-engrave);
+    letter-spacing: .3em; text-transform: uppercase; color: rgb(238 227 207 / .55); }
+  #crate-info { position: absolute; left: calc(100% + 44px); bottom: 190px; width: 440px; text-align: left; opacity: 0; transition: opacity 500ms; }
+  .op-caja.browsing #crate-info { opacity: 1; }
+
+  /* ---- opción ESTANTE: repisas en la pared, tapas de frente; el tocadiscos se corre ---- */
+  #shelf { position: absolute; left: 90px; top: 70px; width: 820px; height: 940px; opacity: 0; transform: translateX(-60px);
+    transition: opacity 600ms, transform 700ms cubic-bezier(.3,.7,.2,1); }
+  .op-estante.browsing #shelf { opacity: 1; transform: none; }
+  .op-estante.browsing #deck { transform: translate(760px, -60px) scale(.62) !important; }
+  #shelf .row { position: relative; height: 222px; }
+  #shelf .row .label { position: absolute; left: 4px; top: 0; font: 500 16px var(--f-engrave); letter-spacing: .24em; text-transform: uppercase; color: rgb(59 47 38 / .6); }
+  #shelf .ledge { position: absolute; left: 0; right: 0; bottom: 18px; height: 18px; border-radius: 3px;
+    background: linear-gradient(180deg, #7a5133, #4a2f1b); box-shadow: 0 16px 20px -6px rgb(60 45 30 / .55), inset 0 2px 0 rgb(255 220 180 / .2); }
+  #shelf .ledge::before { content: ""; position: absolute; left: 0; right: 0; top: -10px; height: 10px; background: linear-gradient(#5a3a24, #6e4a2f); border-radius: 2px 2px 0 0; }
+  #shelf .cover { position: absolute; bottom: 30px; width: 168px; height: 168px; border-radius: 2px; background: #3a2a1d center / cover no-repeat;
+    transform-origin: 50% 100%; transform: rotateX(4deg); box-shadow: 6px 10px 14px rgb(60 45 30 / .45);
+    transition: transform 380ms cubic-bezier(.3,.7,.2,1), box-shadow 380ms; }
+  #shelf .cover.surprise { background: linear-gradient(160deg, #b99467, #8a6640); display: grid; place-items: center; font: 400 90px var(--f-display); color: rgb(74 50 32 / .55); }
+  #shelf .cover.on { transform: translateY(-18px) scale(1.16); box-shadow: 10px 26px 30px rgb(60 45 30 / .55), 0 0 0 4px var(--brass); z-index: 2; }
+  #shelf-info { position: absolute; left: 4px; bottom: -6px; }
+
+  .pick-title { font: 400 40px var(--f-display); color: var(--ink); }
+  .pick-sub { margin-top: 6px; font: 400 20px var(--f-body); color: var(--ink-2); }
+  .pick-kind { font: 500 17px var(--f-engrave); letter-spacing: .24em; text-transform: uppercase; color: #8a5f2c; margin-bottom: 8px; }
+  .pick-hint { margin-top: 10px; font: 400 17px var(--f-body); color: rgb(59 47 38 / .5); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="ambient"><i></i><i></i></div>
+  <div class="plaster" id="wall-full"><div class="face l"></div><div class="face"></div></div>
+  <div class="plaster" id="wall-col"></div>
+  <div class="plaster" id="wall-left"></div>
+  <div class="plaster" id="wall-right"></div>
+  <div id="wall-edges"><svg viewBox="0 0 1920 1080" preserveAspectRatio="none">
+    <defs><filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="14"/></filter></defs>
+    <path d="M511 0 L-108 1080 M1404 0 L2028 1080" stroke="rgb(0 0 0 / .55)" stroke-width="34" filter="url(#soft)" fill="none" transform="translate(0 0)"/>
+    <path d="M511 0 L-108 1080 M1404 0 L2028 1080" stroke="rgb(255 250 240 / .18)" stroke-width="2" fill="none"/>
+  </svg></div>
+  <div id="deck">
+    <div id="plinth">
+      <div id="platter">
+        <div id="disc"><div id="record"><div id="label"></div></div><div id="sheen"></div></div>
+        <div id="spindle"></div>
+      </div>
+      <div class="screw l"></div><div class="screw r"></div>
+      <div id="rest"></div>
+      <div id="cue"></div>
+      <div id="arm"><div class="base"></div><div class="lift"><div class="counterweight"></div><div class="tube"><div class="head"><div class="shell"></div><div class="cart"></div><div class="finger"></div></div></div></div><div class="pivot"></div></div>
+      <div id="knob"></div>
+      <div id="rpm" class="engrave">33⅓ rpm</div>
+      <div id="pilot"></div>
+    </div>
+  </div>
+
+  <div id="info">
+    <div id="seed" class="engrave fade"><span class="kind"></span><span class="name"></span></div>
+    <div id="title" class="fade"></div>
+    <div id="artist" class="fade"></div>
+    <div id="side" class="engrave fade"></div>
+    <div id="progress"><span id="t-cur">0:00</span><div id="bar"><div></div></div><span id="t-len">0:00</span></div>
+    <div id="state" class="engrave">En pausa</div>
+    <div id="queue" class="fade"><h3 class="engrave">Lo que viene</h3><ol id="queue-list"></ol></div>
+  </div>
+
+  <aside id="picker" aria-label="Elegí qué suena">
+    <h2>Elegí qué suena</h2>
+    <p>Escaneá con el celular y buscá un tema, un disco o una playlist.</p>
+    <div id="sleeve">
+      <div id="qr"></div>
+      <div class="url">o entrá desde el navegador a<b>vinilo.local:8080</b></div>
+    </div>
+    <div id="recent"><h3 class="engrave">Estaciones recientes · ↑↓</h3><ul id="recent-list"></ul></div>
+  </aside>
+
+  <div id="hints"><span><b>→</b>siguiente</span><span><b>OK</b>pausa</span><span><b>↑↓</b>estación</span><span><b>≡</b>elegir música</span></div>
+  <div id="caption"><div class="seedline"></div><div class="t"></div><div class="a"></div></div>
+  <div id="crate">
+    <div id="crate-info"><div class="pick-kind" id="ci-kind"></div><div class="pick-title" id="ci-title"></div><div class="pick-sub" id="ci-sub"></div><div class="pick-hint">OK lo pone · ← → revolver · Atrás cierra</div></div>
+    <div class="inside"></div>
+    <div id="sleeves"></div>
+    <div class="front"><div class="hand"></div><div class="brand" id="crate-brand"></div></div>
+  </div>
+  <div id="shelf"><div id="shelf-rows"></div><div id="shelf-info"><div class="pick-kind" id="si-kind"></div><div class="pick-title" id="si-title"></div><div class="pick-sub" id="si-sub"></div><div class="pick-hint">OK lo pone · flechas para elegir · Atrás cierra</div></div></div>
+  <div id="picker-hint"><b>↓</b>tus discos</div>
+  <div id="modetag"></div>
+  <div id="toast"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+  // ---- Datos de ejemplo (miniaturas reales de YouTube Music) ----
+  const thumb = id => id.startsWith("http") ? id : `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`;
+  const T = {
+    ligera:  { id: "sWft4cMiwXQ", t: "De Música Ligera", a: "Soda Stereo", len: 213 },
+    crimen:  { id: "YVXNPPdh6wE", t: "Crimen", a: "Gustavo Cerati", len: 230 },
+    hoteles: { id: "oMszTlYRxWg", t: "Demoliendo Hoteles", a: "Charly García", len: 188 },
+    mariposa:{ id: "xJCMt00NQ1Q", t: "Mariposa Tecknicolor", a: "Fito Páez", len: 264 },
+    matador: { id: "dKJM2ux3bF8", t: "Matador", a: "Los Fabulosos Cadillacs", len: 279 },
+    seguir:  { id: "VSWSnIcnoH4", t: "Seguir Viviendo Sin Tu Amor", a: "Luis Alberto Spinetta", len: 197 },
+  };
+  // Un disco: todos los temas comparten la tapa. (Ejemplo: orden y duraciones aproximados.)
+  const animal = ["(En) El Séptimo Día", "Un Millón de Años Luz", "Canción Animal", "1990", "Hombre al Agua",
+    "Cae el Sol", "Entre Caníbales", "Té para Tres", "Sueles Dejarme Solo", "De Música Ligera"]
+    .map((t, i) => ({ id: "sWft4cMiwXQ", t, a: "Soda Stereo", len: 180 + (i * 37) % 120, side: i < 5 ? "A" : "B", n: i < 5 ? i + 1 : i - 4 }));
+  // Pool para "enganchar": en la app real sale del mix de YT Music / relacionados.
+  const pool = Object.values(T);
+  const SEEDS = {
+    album:    { kind: "Disco", name: "Canción Animal · 1990", tracks: animal },
+    playlist: { kind: "Playlist", name: "Rock nacional esencial", tracks: [T.hoteles, T.mariposa, T.matador, T.ligera] },
+    song:     { kind: "Tema", name: "Crimen", tracks: [T.crimen] },
+  };
+
+  // ---- Escalado 1920x1080 → ventana ----
+  const stage = document.getElementById("stage");
+  const fit = () => { const k = Math.min(innerWidth / 1920, innerHeight / 1080); stage.style.transform = `scale(${k}) translate(-50%, -50%)`; };
+  addEventListener("resize", fit); fit();
+
+  // ---- QR (en la app real lo genera la tele con su propia dirección) ----
+  (function drawQr() {
+    if (typeof qrcode !== "function") return;
+    const q = qrcode(0, "M"); q.addData("http://vinilo.local:8080"); q.make();
+    const n = q.getModuleCount(), c = document.createElement("canvas"); c.width = c.height = n;
+    const g = c.getContext("2d"); g.fillStyle = "#2e1c10";
+    for (let r = 0; r < n; r++) for (let col = 0; col < n; col++) if (q.isDark(r, col)) g.fillRect(col, r, 1, 1);
+    document.getElementById("qr").appendChild(c);
+  })();
+
+  // ---- Estado ----
+  const $ = id => document.getElementById(id);
+  const arm = $("arm"), record = $("record"), label = $("label"), sheen = $("sheen");
+  let stations = [];          // semillas recientes, la actual primero
+  let st = 0, queue = [], idx = 0, pos = 0, playing = false, changing = false, angle = 0, speed = 0;
+  const RPM_DEG = 33.333 * 360 / 60;
+  const ARM_REST = 0, ARM_START = 8, ARM_END = 29;
+  const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+  const cur = () => queue[idx];
+  const station = () => stations[st];
+
+  // Cola = la semilla entera; cuando se acaba, se suman parecidos al azar sin repetir los últimos.
+  function topUp() {
+    while (queue.length - idx < 4) {
+      const recent = new Set(queue.slice(-5).map(x => x.t));
+      const options = pool.filter(p => !recent.has(p.t));
+      const pick = options[Math.floor(Math.random() * options.length)] || pool[0];
+      queue.push({ ...pick, auto: true });
+    }
+  }
+
+  function render() {
+    const tr = cur(), s = station();
+    $("seed").querySelector(".kind").textContent = tr.auto ? "Enganchando" : s.kind;
+    $("seed").querySelector(".name").textContent = tr.auto ? `parecidos a ${s.name.split(" · ")[0]}` : s.name;
+    $("title").textContent = tr.t;
+    $("artist").textContent = tr.a;
+    $("side").textContent = tr.side ? `Lado ${tr.side} · tema ${tr.n}` : "";
+    $("t-len").textContent = fmt(tr.len);
+    label.style.backgroundImage = `url(${thumb(tr.id)})`;
+    setAmbient(thumb(tr.id));
+    $("caption").querySelector(".t").textContent = tr.t;
+    $("caption").querySelector(".a").textContent = tr.a;
+    $("caption").querySelector(".seedline").textContent = tr.auto ? `Enganchando · parecidos a ${s.name.split(" · ")[0]}` : `${s.kind} · ${s.name}`;
+    const up = queue.slice(idx + 1, idx + 4);
+    const firstAuto = tr.auto ? -1 : up.findIndex(u => u.auto);
+    $("queue-list").innerHTML = up.map((u, k) =>
+      (k === firstAuto ? `<li class="shuffle"><div class="thumb">⤨</div><span class="t">Termina ${s.kind === "Tema" ? "el tema" : s.kind === "Disco" ? "el disco" : "la playlist"}: siguen parecidos al azar</span></li>` : "") +
+      `<li><div class="thumb" style="background-image:url(${thumb(u.id)})"></div><span class="t">${u.t} <span class="a">· ${u.a}</span></span></li>`
+    ).slice(0, 3).join("");
+    $("recent-list").innerHTML = stations.map((s2, k) =>
+      `<li class="${k === st ? "on" : ""}"><span class="k">${s2.kind}</span>${s2.name}</li>`).join("");
+  }
+
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // Brazo con física simple: el giro es un resorte casi amortiguado (tiene inercia y se acomoda);
+  // la altura sube rápido y baja despacio, como la palanca hidráulica, con un rebotito al apoyar.
+  const ARM = { a: ARM_REST, v: 0, target: ARM_REST, h: 1, hv: 0, hTarget: 1 };
+  const lifter = arm.querySelector(".lift"), headEl = arm.querySelector(".head"), cue = $("cue");
+  const setArm = (deg, lifted) => { ARM.target = deg; ARM.hTarget = lifted ? 1 : 0; };
+  function stepArm(dt) {
+    const k = 16, c = 2 * Math.sqrt(k) * .78;
+    ARM.v += ((ARM.target - ARM.a) * k - ARM.v * c) * dt; ARM.a += ARM.v * dt;
+    const down = ARM.hTarget < ARM.h;
+    const kh = down ? 7 : 45, ch = 2 * Math.sqrt(kh) * (down ? .62 : 1);
+    ARM.hv += ((ARM.hTarget - ARM.h) * kh - ARM.hv * ch) * dt; ARM.h += ARM.hv * dt;
+    const h = Math.max(-.04, Math.min(1.05, ARM.h));
+    const onRecord = h < .03 && playing;
+    // apoyado sobre el disco, el brazo copia el alabeo del vinilo
+    const warp = onRecord ? Math.sin(angle * Math.PI / 180) * .07 : 0;
+    const bob = onRecord ? Math.sin(angle * Math.PI / 90) * .6 : 0;
+    arm.style.transform = `rotate(${(ARM.a + warp).toFixed(3)}deg)`;
+    lifter.style.transform = `scale(${(1 + .028 * h).toFixed(4)})`;
+    lifter.style.filter = `drop-shadow(${(9 + 16 * h).toFixed(1)}px ${(13 + 30 * h).toFixed(1)}px ${(7 + 14 * h).toFixed(1)}px rgb(0 0 0 / ${(.55 - .2 * h).toFixed(2)}))`;
+    headEl.style.translate = `0 ${bob.toFixed(2)}px`;
+    cue.style.transform = `rotate(${(-42 * Math.max(0, Math.min(1, ARM.hTarget ? h : h))).toFixed(1)}deg)`;
+  }
+  // Dos capas que se funden: la tapa nueva aparece mientras la anterior se apaga.
+  let ambientTop = 0, ambientUrl = "";
+  function setAmbient(url) {
+    if (url === ambientUrl) return; ambientUrl = url;
+    const layers = document.querySelectorAll("#ambient i");
+    ambientTop = 1 - ambientTop;
+    layers[ambientTop].style.backgroundImage = `url(${url})`;
+    layers[ambientTop].classList.add("on"); layers[1 - ambientTop].classList.remove("on");
+  }
+  const fades = on => document.querySelectorAll(".fade").forEach(e => e.classList.toggle("out", on));
+
+  async function change(update) {
+    if (changing) return; changing = true; playing = false;
+    setArm(ARM.target, true); fades(true);           // 1) levanta en el lugar
+    await sleep(380);
+    setArm(ARM_REST + 1.5, true);                     // 2) vuelve hacia el apoyabrazo
+    await sleep(700);
+    const before = cur() && cur().id;
+    update(); topUp(); pos = 0;
+    if (before && cur().id !== before) {          // otro disco: sale el viejo, entra el nuevo
+      $("disc").classList.add("away"); await sleep(480);
+      render(); $("disc").classList.remove("away"); await sleep(380);
+    } else render();
+    fades(false);
+    setArm(ARM_START, true);                          // 3) viaja al borde del disco
+    await sleep(1250);
+    setArm(ARM_START, false);                         // 4) baja despacio y apoya
+    await sleep(700);
+    stage.classList.remove("paused"); playing = true; changing = false; stage.classList.add("playing");
+  }
+  const next = () => change(() => { idx++; });
+  const goStation = d => change(() => { st = (st + d + stations.length) % stations.length; queue = [...station().tracks]; idx = 0; });
+  function playSeed(seed) {
+    stage.classList.remove("picking");
+    toast(`${seed.kind}: ${seed.name.split(" · ")[0]}`);
+    change(() => { stations = [seed, ...stations.filter(s => s.name !== seed.name)].slice(0, 5); st = 0; queue = [...seed.tracks]; idx = 0; });
+  }
+  function togglePause() {
+    if (changing) return;
+    playing = !playing; stage.classList.toggle("paused", !playing); stage.classList.toggle("playing", playing);
+    setArm(ARM_START + (ARM_END - ARM_START) * (pos / cur().len), !playing);
+  }
+  let toastTimer;
+  function toast(msg) { const t = $("toast"); t.textContent = `Desde el celular · ${msg}`; t.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 2600); }
+
+  // Salvapantallas: sin tocar nada un rato, queda solo el tocadiscos. Cualquier tecla lo despierta.
+  const IDLE_MS = 20000;
+  let idleTimer;
+  function wake() {
+    const wasIdle = stage.classList.contains("idle");
+    stage.classList.remove("idle"); clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => { if (!stage.classList.contains("picking")) stage.classList.add("idle"); }, IDLE_MS);
+    return wasIdle;
+  }
+  wake();
+
+  // ---- Fondos estufa ----
+  const MODES = ["actual", "embudo", "yeso", "columna", "colgado"];
+  const MODE_NAMES = { actual: "Fondo actual", embudo: "Embudo: centro oscuro, costados de yeso", yeso: "Todo yeso", columna: "Columna de yeso al centro", colgado: "Todo yeso, tocadiscos colgado" };
+  let mode = "colgado";
+  let plasterL = 78;                                   // brillo del yeso (% de luminosidad)
+  let tagTimer;
+  function applyMode(show = true) {
+    MODES.forEach(m => stage.classList.toggle("mode-" + m, m === mode));
+    if (mode === "colgado") stage.classList.add("mode-yeso");   // mismo fondo que "yeso"
+    stage.classList.toggle("hung", mode === "colgado");
+    stage.classList.toggle("centered", mode !== "actual");
+    document.documentElement.style.setProperty("--plaster", `hsl(40 14% ${plasterL}%)`);
+    if (show) { const t = $("modetag"); t.textContent = `${MODE_NAMES[mode]} · yeso ${plasterL}%`; t.classList.add("show"); clearTimeout(tagTimer); tagTimer = setTimeout(() => t.classList.remove("show"), 1800); }
+    if (history.replaceState) history.replaceState(null, "", "#" + mode);
+  }
+
+  // ================= CAJA DE DISCOS =================
+  const ALBUMS = [{"title": "Canción Animal", "artist": "Soda Stereo", "thumb": "https://yt3.googleusercontent.com/fqzemW0CAQ7WkgOlJfUkW-WT7eWe1SFjoOnSAkqty0VGV-zQF_6CRxhvNJ0xCg1jRJPayvSrKI7A5R8=w720-h720-l90-rj", "url": "https://music.youtube.com/playlist?list=OLAK5uy_nhHzfeEh8qiJo8EbAoWRfLH6wFcYPSigI"}, {"title": "Bocanada", "artist": "Gustavo Cerati", "thumb": "https://yt3.googleusercontent.com/w_XbOpZ41vU-cA6pwTQTh52H75q-_l6Nn-Rq1dqp7QrBVLmlpxJ4IuwVtOdKYfeYg30MvzJvVjzxcpc3=w720-h720-l90-rj", "url": "https://music.youtube.com/playlist?list=OLAK5uy_nlbFbx2_8gl5PC-muumqcy0T-BG7Xy0Zw"}, {"title": "Clics Modernos", "artist": "Charly García", "thumb": "https://yt3.googleusercontent.com/KZ1g09vcdPljsD2RnXib3zdJIMfhhu4-0XmmIUbiG6F5bBEZWGJkpMmK-gTEUdyh2bEO9ijeuoQkVZmxvg=w720-h720-l90-rj", "url": "https://music.youtube.com/playlist?list=OLAK5uy_lykK9GSjkJBFHK-_KU-brjzofAMY0DqiE"}, {"title": "Artaud", "artist": "Pescado Rabioso", "thumb": "https://yt3.googleusercontent.com/biwCHrCz4Enh9Z3Z7DBV-WGY_LiKRKWslQ-D-ue9BnvgbD-Wx0XIlHOmmZYTQ9oGdwsBBKR9elhIG1vV=w720-h720-l90-rj", "url": "https://music.youtube.com/playlist?list=OLAK5uy_lo1rg5ZVqTZ3IP9j2PXQlyj5es9lXqKww"}, {"title": "El Amor Después del Amor", "artist": "Fito Paez", "thumb": "https://yt3.googleusercontent.com/6GAkF0PgX0xbM_QPdvY1uuNtZV9q_LS-YnsXZE0-5iOFbdf6wQZu0uG3qLIWtDWavYD8Oh0Yfq1rLl45Zg=w720-h720-l90-rj", "url": "https://music.youtube.com/playlist?list=OLAK5uy_lhFGfhqagYSyrRtzFJwvjDmJk15HKgOJc"}, {"title": "Vasos Vacíos", "artist": "Los Fabulosos Cadillacs", "thumb": "https://yt3.googleusercontent.com/eVlVTO-odFjBOg3gJZoGSu5eYO-nQIxBN4dVFGGiHXanv3E1Z3cIeb7P-C61GMgim2AVrujCuNiuTOickw=w720-h720-l90-rj", "url": "https://music.youtube.com/playlist?list=OLAK5uy_lK7fGrljC_Yav7oaBxlKeKZYBewtH0zng"}, {"title": "Oktubre", "artist": "Patricio Rey y Sus Redonditos de Ricota", "thumb": "https://yt3.googleusercontent.com/qocvrU7WAza7OzX91dJG-Gm6GuJtJ-MijU7ZvBqzCtQXSi4BN8SmzyfU54tNYGusN9rHSeLMplgdLEIJ=w720-h720-l90-rj", "url": "https://music.youtube.com/playlist?list=OLAK5uy_lNPub5OKWete2AX52_SH78O4ahHY33A-0"}, {"title": "Locura", "artist": "Virus", "thumb": "https://yt3.googleusercontent.com/hZgZnABLsxbTC9OZdXts6ZCqqGllPZf_mQI9z4yzJPxvOy0yrE80ln7XC2-WWqtqfI4J0TSr4f-f5nm_=w720-h720-l90-rj", "url": "https://music.youtube.com/playlist?list=OLAK5uy_mp3gdQh3T1XJA8FInpW1s7sCKE1afEyF0"}, {"title": "La Era De La Boludez", "artist": "Divididos", "thumb": "https://yt3.googleusercontent.com/2tcHToFu8LcVm7NuNPP0U3fc_8iO98-VZUf1NkdQoQ1NKredDS0iP52Yssv4vGzcesBVfRYf4NTWYWpy=w720-h720-l90-rj", "url": "https://music.youtube.com/playlist?list=OLAK5uy_krTxV9pl-PueLDFO84QtrNxyQphXkyGtE"}, {"title": "25 Años de Música", "artist": "Los Cafres", "thumb": "https://yt3.googleusercontent.com/TmwW5x6TfDX52ayV3ed6ZsGxFXolyJh6oSF66ZCsMgIEK-RekdAKVcZ7Xtn16Bh7wylkgmviAeplLS_V=w720-h720-l90-rj", "url": "https://music.youtube.com/playlist?list=OLAK5uy_m1WY2cg4D4o83y9T8Rne3A67sR1VHzZp4"}, {"title": "Flores De Un Día", "artist": "Cuatro Pesos de Propina", "thumb": "https://yt3.googleusercontent.com/IYy9rdzQtLL0bZeub38sJFc3qx-tMjMhtw-5kNEdESyqijd4iUtKVGIkbkEjdN05hjz-Ko_cM8jq6w7VIw=w720-h720-l90-rj", "url": "https://music.youtube.com/playlist?list=OLAK5uy_ncwE_PKAMMcFpiK6xanGMc8qz0q6S6iBM"}, {"title": "Vida", "artist": "Sui Generis", "thumb": "https://yt3.googleusercontent.com/qVnQ8tLusiRxK1kC78pFajt2-ofkAeTdPfaXpmO_60wXAEIPTunSSeyg-tyatz0u4caLe_06L_cEY7Yz=w720-h720-l90-rj", "url": "https://music.youtube.com/playlist?list=OLAK5uy_l1Ud152vZL0qFqBkSEscsPvep2WtDZcjM"}, {"title": "Jessico", "artist": "Babasónicos", "thumb": "https://yt3.googleusercontent.com/XACIGatz27WkIcBfsL9taiRQWeRnckEj_XGhW2eGktzEE5VUvZzrUvmpkYsjxenTuxCxff3HbZ0sQ70=w720-h720-l90-rj", "url": "https://music.youtube.com/playlist?list=OLAK5uy_lmu3nFAHUQv0YM6DLac_-bdVsfE0OWqlU"}, {"title": "Honestidad Brutal", "artist": "Andres Calamaro", "thumb": "https://yt3.googleusercontent.com/5g8o7hTxDYFnOQKFN2eFEx1Ov1oxBc8Bmf8LKV04E32jz4vS0nNlojsbXr_LZfCRwcYj-qjMtqa7c5o=w720-h720-l90-rj", "url": "https://music.youtube.com/playlist?list=OLAK5uy_kUMBrNKi7nVJ0N6Oi2u0bbyHvbvWBAVPU"}];
+  const RECENT = [ALBUMS[9], ALBUMS[10]];                       // "lo último que sonó" (ejemplo)
+  const toSeed = a => ({ kind: "Disco", name: `${a.title} · ${a.artist}`,
+    tracks: [{ id: a.thumb, t: a.title, a: a.artist, len: 240, side: "A", n: 1 }, { id: a.thumb, t: a.title + " (tema 2)", a: a.artist, len: 210, side: "A", n: 2 }] });
+  // ítems de la caja: separadores, discos y la sorpresa
+  const ITEMS = [
+    { type: "divider", tab: "Lo último", big: "Lo último que sonó" },
+    ...RECENT.map(a => ({ type: "album", a, recent: true })),
+    { type: "divider", tab: "La caja", big: `La caja · ${ALBUMS.length} discos` },
+    ...ALBUMS.map(a => ({ type: "album", a })),
+    { type: "surprise" },
+  ];
+  let op = new URLSearchParams(location.search).get("op") === "estante" ? "estante" : "caja";
+  let browsing = false, ci = 1, si = 0;
+
+  // ---- caja
+  const sleevesEl = $("sleeves");
+  ITEMS.forEach((it, i) => {
+    const d = document.createElement("div");
+    d.className = "sleeve" + (it.type === "divider" ? " divider kraft" : it.type === "surprise" ? " surprise" : "");
+    if (it.type === "album") d.style.backgroundImage = `url('${it.a.thumb}')`;
+    if (it.type === "divider") d.innerHTML = `<div class="tab">${it.tab}</div><div class="big">${it.big}</div>`;
+    sleevesEl.appendChild(d);
+  });
+  $("crate-brand").textContent = `Vinilo · la caja`;
+  function layoutCrate() {
+    [...sleevesEl.children].forEach((el, i) => {
+      const d = i - ci;                                      // 0 = el de adelante
+      if (d < 0) {                                           // ya revueltos: volcados hacia adelante
+        el.style.transform = `translateY(160px) rotateX(-78deg) scale(.96)`; el.style.opacity = d < -2 ? 0 : .9; el.style.zIndex = 50 + d;
+        el.style.filter = "brightness(.7)";
+      } else {
+        el.style.transform = `translateY(${-d * 22}px) translateZ(${-d * 34}px) rotateX(${d === 0 ? -6 : 0}deg)`;
+        el.style.opacity = d > 7 ? 0 : 1; el.style.zIndex = 40 - d;
+        el.style.filter = `brightness(${1 - Math.min(d, 6) * .11})`;
+      }
+    });
+    showInfo("ci", ITEMS[ci]);
+  }
+  // ---- estante: fila 0 = lo último + sorpresa; después la caja de a 4
+  const ROWS = [[...RECENT.map(a => ({ type: "album", a })), { type: "surprise" }]];
+  for (let i = 0; i < ALBUMS.length; i += 4) ROWS.push(ALBUMS.slice(i, i + 4).map(a => ({ type: "album", a })));
+  const SHELF_ROWS = ROWS.slice(0, 4);                       // entran 4 repisas
+  const flat = SHELF_ROWS.flatMap((r, ri) => r.map((it, xi) => ({ ...it, ri, xi })));
+  const rowsEl = $("shelf-rows");
+  SHELF_ROWS.forEach((r, ri) => {
+    const row = document.createElement("div"); row.className = "row";
+    row.innerHTML = `<div class="label">${ri === 0 ? "Lo último que sonó" : ri === 1 ? "La caja" : ""}</div><div class="ledge"></div>`;
+    r.forEach((it, xi) => {
+      const c = document.createElement("div");
+      c.className = "cover" + (it.type === "surprise" ? " surprise" : "");
+      c.style.left = (12 + xi * 200) + "px";
+      if (it.type === "album") c.style.backgroundImage = `url('${it.a.thumb}')`; else c.textContent = "?";
+      c.dataset.k = ri + ":" + xi; row.appendChild(c);
+    });
+    rowsEl.appendChild(row);
+  });
+  function layoutShelf() {
+    const cur = flat[si];
+    rowsEl.querySelectorAll(".cover").forEach(c => c.classList.toggle("on", c.dataset.k === cur.ri + ":" + cur.xi));
+    showInfo("si", cur);
+  }
+  function showInfo(p, it) {
+    $(p + "-kind").textContent = it.type === "divider" ? "Separador" : it.type === "surprise" ? "Sorpresa" : it.recent ? "Disco · lo último que sonó" : "Disco";
+    $(p + "-title").textContent = it.type === "album" ? it.a.title : it.type === "surprise" ? "Que elija la caja" : it.big;
+    $(p + "-sub").textContent = it.type === "album" ? it.a.artist : it.type === "surprise" ? "Un disco al azar de la caja" : "Seguí revolviendo";
+  }
+  function setOp(o) { op = o; stage.classList.toggle("op-caja", op === "caja"); stage.classList.toggle("op-estante", op === "estante"); }
+  function open() { browsing = true; stage.classList.add("browsing"); layoutCrate(); layoutShelf(); }
+  function close() { browsing = false; stage.classList.remove("browsing"); }
+  function pick(it) {
+    if (!it || it.type === "divider") return;
+    const a = it.type === "surprise" ? ALBUMS[Math.floor(Math.random() * ALBUMS.length)] : it.a;
+    close(); playSeed(toSeed(a));
+  }
+  function moveShelf(dx, dy) {
+    const cur = flat[si];
+    if (dy) {
+      const ri = cur.ri + dy;
+      if (ri < 0) return close();
+      if (ri >= SHELF_ROWS.length) return;
+      const xi = Math.min(cur.xi, SHELF_ROWS[ri].length - 1);
+      si = flat.findIndex(f => f.ri === ri && f.xi === xi);
+    } else si = Math.max(0, Math.min(flat.length - 1, si + dx));
+    layoutShelf();
+  }
+  addEventListener("keydown", e => {
+    const k = e.key;
+    if (k === "c" || k === "C") { setOp(op === "caja" ? "estante" : "caja"); if (browsing) open(); e.stopImmediatePropagation(); e.preventDefault(); return; }
+    if (!browsing) {
+      if (k === "ArrowDown") { wake(); open(); e.stopImmediatePropagation(); e.preventDefault(); }
+      return;
+    }
+    if (k === "Escape" || k === "Backspace") close();
+    else if (k === "Enter" || k === " ") pick(op === "caja" ? ITEMS[ci] : flat[si]);
+    else if (op === "caja") {
+      if (k === "ArrowRight") ci = Math.min(ITEMS.length - 1, ci + 1);
+      else if (k === "ArrowLeft") ci = Math.max(0, ci - 1);
+      else if (k === "ArrowUp") return close(), e.stopImmediatePropagation(), e.preventDefault();
+      layoutCrate();
+    } else {
+      if (k === "ArrowRight") moveShelf(1, 0); else if (k === "ArrowLeft") moveShelf(-1, 0);
+      else if (k === "ArrowUp") moveShelf(0, -1); else if (k === "ArrowDown") moveShelf(0, 1);
+    }
+    e.stopImmediatePropagation(); e.preventDefault();
+  }, true);
+  window.crateDemo = (o, openIt, idx) => { setOp(o); if (openIt) { open(); if (idx != null) { if (o === "caja") { ci = idx; layoutCrate(); } else { si = idx; layoutShelf(); } } } else close(); };
+  setOp(op);
+
+  window.setMode = (m, l) => { if (MODES.includes(m)) mode = m; if (l) plasterL = l; applyMode(); };
+  applyMode(false);
+
+  addEventListener("keydown", e => {
+    if (e.key === "f" || e.key === "F") { mode = MODES[(MODES.indexOf(mode) + 1) % MODES.length]; applyMode(); e.preventDefault(); return; }
+    if (e.key === "[" || e.key === "]") { plasterL = Math.max(40, Math.min(95, plasterL + (e.key === "]" ? 3 : -3))); applyMode(); e.preventDefault(); return; }
+    if (wake()) { e.preventDefault(); return; }   // la primera tecla solo despierta
+    const k = e.key;
+    if (k === "ArrowRight") next();
+    else if (k === "ArrowUp") goStation(-1);
+    else if (k === "ArrowDown") goStation(1);
+    else if (k === "Enter" || k === " ") togglePause();
+    else if (k === "m" || k === "M" || k === "ContextMenu") stage.classList.toggle("picking");
+    else if (k === "Escape" || k === "Backspace") stage.classList.remove("picking");
+    else return;
+    e.preventDefault();
+  });
+
+  // Órdenes del celular (en la app real llegan por HTTP a la página que sirve la tele).
+  addEventListener("message", e => {
+    const m = e.data || {};
+    wake();
+    const seed = typeof m.seed === "string" ? SEEDS[m.seed] : m.seed;
+    if (m.type === "play" && seed && seed.tracks && seed.tracks.length) playSeed(seed);
+    else if (m.type === "next") next();
+    else if (m.type === "pause") togglePause();
+    else if (m.type === "picker") stage.classList.toggle("picking", !!m.open);
+  });
+  const report = () => { if (parent !== window) parent.postMessage({ type: "now", now: cur(), seed: { kind: station().kind, name: station().name }, playing }, "*"); };
+
+  // ---- Bucle: giro con inercia, progreso y brazo hacia el centro ----
+  let last = performance.now(), lastReport = 0;
+  function tick(now) {
+    const dt = Math.min(.1, (now - last) / 1000); last = now;
+    speed += ((playing ? RPM_DEG : 0) - speed) * Math.min(1, dt * (playing ? 1.6 : 1.1));
+    angle = (angle + speed * dt) % 360;
+    record.style.transform = `rotate(${angle}deg)`;
+    sheen.style.opacity = (.8 + .2 * Math.sin(angle * Math.PI / 90)).toFixed(3);   // el brillo titila con los surcos
+    stepArm(dt);
+    if (playing && !changing) {
+      pos += dt * 6;   // mockup: el tiempo corre 6x
+      if (pos >= cur().len) next(); else setArm(ARM_START + (ARM_END - ARM_START) * (pos / cur().len), false);
+    }
+    $("t-cur").textContent = fmt(pos);
+    $("bar").firstElementChild.style.width = `${(pos / cur().len) * 100}%`;
+    if (now - lastReport > 400) { lastReport = now; report(); }
+    requestAnimationFrame(tick);
+  }
+
+  stations = [SEEDS.album, SEEDS.song, SEEDS.playlist];
+  queue = [...SEEDS.album.tracks]; idx = 8;   // penúltimo tema del disco: en un rato se ve el enganche
+  topUp(); render(); setArm(ARM_REST, true); requestAnimationFrame(tick);
+  setTimeout(() => change(() => {}), 600);
+</script>
+</body>
+</html>
