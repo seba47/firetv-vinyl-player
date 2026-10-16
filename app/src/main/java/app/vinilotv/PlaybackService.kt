@@ -30,7 +30,8 @@ class PlaybackService : MediaSessionService() {
             .setUserAgent(YouTube.USER_AGENT)
             .setAllowCrossProtocolRedirects(true)
         val exo = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(this).setDataSourceFactory(http))
+            // de a pedazos: algunas URLs de YouTube (cliente iOS, "para niños") rechazan pedidos abiertos
+            .setMediaSourceFactory(DefaultMediaSourceFactory(this).setDataSourceFactory(ChunkedDataSource.Factory(http)))
             .setAudioAttributes(
                 AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(),
                 true,

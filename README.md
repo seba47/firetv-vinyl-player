@@ -50,7 +50,8 @@ scripts/mockup.sh                            # mockups de diseño: http://localh
 
 Las URLs de audio de YouTube vencen (~6 h) y quedan atadas a la IP: cada tema se resuelve justo antes
 de sonar. Los videos "hechos para niños" (p. ej. Pim Pau) no traen audio con el cliente de siempre: se
-piden como el cliente de iOS y, si tampoco, se usa el video combinado sin imagen. Tipografías: Young Serif, Familjen Grotesk y Big Shoulders Text (OFL, `docs/licencias/`).
+piden como el cliente de iOS y, si tampoco, se usa el video combinado sin imagen. El audio se baja de a
+pedazos de 1 MB (`ChunkedDataSource`): esas URLs rechazan con 403 los pedidos abiertos. Tipografías: Young Serif, Familjen Grotesk y Big Shoulders Text (OFL, `docs/licencias/`).
 
 ## Docs
 
