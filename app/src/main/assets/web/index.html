@@ -102,6 +102,16 @@
   #look .sw { width: 26px; height: 26px; border-radius: 6px; flex: none; border: 1px solid var(--line); }
   #look .sw.living { background: radial-gradient(circle at 40% 40%, #5b3b25, #1b1613 70%); }
   #look .sw.estufa { background: #d6d0c4; }
+  #look .switch { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 4px 0 6px; cursor: pointer; }
+  #look .switch .txt { display: grid; gap: 2px; font-size: 15px; color: var(--cream); }
+  #look .switch .txt b { font-weight: 500; }
+  #look .switch .txt span { font-size: 13px; color: var(--cream-3); }
+  #look .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  #look .switch .track { position: relative; width: 52px; height: 30px; border-radius: 15px; background: rgb(238 227 207 / .18); transition: background 200ms; }
+  #look .switch .knob { position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: var(--cream); transition: transform 200ms; box-shadow: 0 1px 3px rgb(0 0 0 / .4); }
+  #look .switch input:checked + .track { background: var(--brass); }
+  #look .switch input:checked + .track .knob { transform: translateX(22px); }
+  #look .switch input:focus-visible + .track { outline: 2px solid var(--brass); outline-offset: 2px; }
   #look label { display: grid; gap: 6px; font-size: 14px; color: var(--cream-2); }
   #look input[type=range] { width: 100%; accent-color: var(--brass); }
   #toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 16px); padding: 12px 18px; border-radius: 30px;
@@ -148,11 +158,11 @@
 
   <section id="look" aria-labelledby="look-title">
     <h2 class="section engrave" id="look-title">Pantalla de la tele</h2>
-    <div class="row" role="group" aria-label="Movimiento">
-      <button id="anim-on" data-anim="1" aria-pressed="true"><span class="sw" style="background:radial-gradient(circle,#111 0 30%,#c2924f 31% 38%,#111 39%)"></span>Animado</button>
-      <button id="anim-off" data-anim="0" aria-pressed="false"><span class="sw" style="background:#2a2019"></span>Quieto</button>
-    </div>
-    <p class="note" style="text-align:left;padding:0;font-size:13px">“Quieto” frena el disco y todo lo que se mueve; la música sigue igual.</p>
+    <label class="switch" for="anim">
+      <span class="txt"><b>Animación del tocadiscos</b><span id="anim-sub">El disco gira y el brazo acompaña</span></span>
+      <input id="anim" type="checkbox" role="switch" checked>
+      <span class="track" aria-hidden="true"><span class="knob"></span></span>
+    </label>
     <div class="row">
       <button id="wall-living" data-wall="LIVING" aria-pressed="true"><span class="sw living"></span>Living</button>
       <button id="wall-estufa" data-wall="ESTUFA" aria-pressed="false"><span class="sw estufa"></span>Estufa de yeso</button>
@@ -301,7 +311,8 @@
   const SLIDERS = { plaster: v => v + "%", edgeTop: v => (v / 10).toFixed(1) + "%", edgeBottom: v => (v / 10).toFixed(1) + "%" };
   function showLook() {
     document.querySelectorAll("#look .row button[data-wall]").forEach(b => b.setAttribute("aria-pressed", b.dataset.wall === look.wall));
-    document.querySelectorAll("#look .row button[data-anim]").forEach(b => b.setAttribute("aria-pressed", (b.dataset.anim === "1") === look.animated));
+    $("anim").checked = look.animated;
+    $("anim-sub").textContent = look.animated ? "El disco gira y el brazo acompaña" : "Quieto: nada se mueve, la música sigue igual";
     $("estufa-opts").hidden = look.wall !== "ESTUFA";
     $("estufa-opts").style.display = look.wall === "ESTUFA" ? "grid" : "none";
     Object.entries(SLIDERS).forEach(([k, fmt]) => { $(k).value = look[k]; $(k + "-v").textContent = fmt(look[k]); });
@@ -312,7 +323,7 @@
     catch { toast("No llego a la tele"); }
   }
   document.querySelectorAll("#look .row button[data-wall]").forEach(b => b.addEventListener("click", () => sendLook({ wall: b.dataset.wall })));
-  document.querySelectorAll("#look .row button[data-anim]").forEach(b => b.addEventListener("click", () => sendLook({ animated: b.dataset.anim === "1" })));
+  $("anim").addEventListener("change", e => sendLook({ animated: e.target.checked }));
   let sliderTimer;
   Object.entries(SLIDERS).forEach(([k, fmt]) => $(k).addEventListener("input", e => {
     look[k] = +e.target.value; $(k + "-v").textContent = fmt(look[k]); lookDirty = Date.now();
