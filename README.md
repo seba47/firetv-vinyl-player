@@ -1,5 +1,7 @@
 # Vinilo TV
 
+![Vinilo TV en la tele y la página del celular para elegir qué suena](docs/img/vinilo-tv.png)
+
 Tocadiscos de fondo para Fire TV: elegís un tema, un disco o una playlist desde el celular y suena
 YouTube Music sin parar, con un vinilo girando en la tele. App nativa Android TV (Kotlin + Compose +
 Media3) con extracción en el dispositivo vía [NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor).
