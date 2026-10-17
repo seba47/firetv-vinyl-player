@@ -86,6 +86,7 @@ object Radio {
     private var startJob: Job? = null
     private var aheadJob: Job? = null
     private var retriedCurrent = false
+    private var seedReadAt = 0L        // última vez que se leyó la playlist de la semilla
 
     fun attach(context: Context, exo: ExoPlayer) {
         player = exo
@@ -127,6 +128,7 @@ object Radio {
                 return@launch
             }
             queue.clear(); index = 0; playedIds.clear(); playedTitles.clear()
+            seedReadAt = System.currentTimeMillis()
             queue += items.getOrThrow()
             // stop() antes de vaciar: si no, el reproductor avisa "terminó" y la radio avanzaría sola.
             player?.run { stop(); clearMediaItems() }
@@ -229,6 +231,7 @@ object Radio {
     /** Cuando quedan pocos temas, suma parecidos (mix de un tema reciente) que no hayan sonado. */
     private suspend fun topUp(gen: Int) {
         if (queue.size - index > 3) return
+        if (refreshPlaylist(gen)) return
         val bases = queue.subList((index - 2).coerceAtLeast(0), queue.size).map { it.track }.shuffled()
         for (base in bases.take(3)) {
             val mix = withContext(Dispatchers.IO) {
@@ -246,6 +249,28 @@ object Radio {
                 return
             }
         }
+    }
+
+    /**
+     * Una playlist puede ir creciendo (el usuario le agrega temas): cuando se están por terminar sus
+     * temas, si pasaron 10 min desde la última lectura, se vuelve a leer y se suman los nuevos antes
+     * de pasar a los parecidos. (Al ponerla de nuevo siempre se lee entera.)
+     */
+    private suspend fun refreshPlaylist(gen: Int): Boolean {
+        val seed = _state.value.seed ?: return false
+        if (seed.kind != SeedKind.PLAYLIST) return false
+        if (System.currentTimeMillis() - seedReadAt < 10 * 60_000L) return false
+        seedReadAt = System.currentTimeMillis()
+        val fresh = withContext(Dispatchers.IO) { runCatching { YouTube.playlistTracks(seed.url) }.getOrDefault(emptyList()) }
+        if (gen != generation) return false
+        val known = playedIds + queue.map { it.track.videoId }
+        val added = fresh.filter { it.videoId !in known }
+        if (added.isEmpty()) return false
+        queue += added.map { QueueItem(it, auto = false) }
+        Log.i(TAG, "Playlist releída: +${added.size} temas nuevos")
+        toast("${added.size} ${if (added.size == 1) "tema nuevo" else "temas nuevos"} en ${seed.title}")
+        publish()
+        return true
     }
 
     private fun ensureAhead(gen: Int) {

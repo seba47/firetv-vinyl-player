@@ -8,7 +8,7 @@ import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.HttpDataSource
 
 /**
- * Pide el audio de YouTube de a pedazos acotados (Range: bytes=a-b) en vez de "todo de una".
+ * Pide el audio de YouTube de a pedazos acotados (Range: bytes=a-b, nunca más allá del final) en vez de "todo de una".
  *
  * Algunas URLs de googlevideo (las del cliente de iOS, que usamos para los videos "hechos para
  * niños") responden 403 a un pedido abierto (sin Range o "bytes=0-") y solo aceptan rangos
@@ -32,6 +32,8 @@ class ChunkedDataSource(private val upstream: HttpDataSource.Factory) : BaseData
         transferInitializing(dataSpec)
         spec = dataSpec
         position = dataSpec.position
+        // el tamaño exacto viene en la URL (clen=): estas URLs dan 403 si el rango se pasa del final
+        total = dataSpec.uri.getQueryParameter("clen")?.toLongOrNull() ?: -1L
         end = if (dataSpec.length != C.LENGTH_UNSET.toLong()) dataSpec.position + dataSpec.length else -1L
         openChunk()
         opened = true

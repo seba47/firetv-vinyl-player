@@ -79,6 +79,44 @@ class ExtractionSmokeTest {
         assertTrue("No se pudo resolver ningún tema", ok > 0)
     }
 
+    /** Links pegados desde el celular: disco, playlist de usuario y tema suelto. */
+    @Test
+    fun pastedLinks() {
+        val list = YouTube.search(query, SeedKind.PLAYLIST).first().url
+        val listId = Regex("list=([A-Za-z0-9_-]+)").find(list)!!.groupValues[1]
+        val song = YouTube.searchSongs(query).first().videoId
+        val links = listOf(
+            "https://music.youtube.com/playlist?list=OLAK5uy_mEbM01YhGgpVCzga-KIXsHQ3ylB8iYPDE",   // disco (Recreo, Pim Pau)
+            "https://www.youtube.com/playlist?list=$listId&si=abc",                                 // playlist de usuario
+            "https://m.youtube.com/watch?v=$song&list=$listId",                                     // tema dentro de una playlist
+            "https://youtu.be/$song?si=xyz",                                                         // tema suelto
+            "https://music.youtube.com/watch?v=$song&list=RDAMVM$song",                              // mix → el tema
+        )
+        links.forEach { l ->
+            val r = YouTube.fromUrl(l)
+            println("  ${r.kind} · ${r.title} · ${r.subtitle} (${r.trackCount}) ← $l")
+            assertTrue(r.title.isNotBlank())
+        }
+        assertEquals(SeedKind.ALBUM, YouTube.fromUrl(links[0]).kind)
+        assertEquals(SeedKind.SONG, YouTube.fromUrl(links[3]).kind)
+        assertTrue(YouTube.looksLikeUrl(" https://youtu.be/x ") && !YouTube.looksLikeUrl("soda stereo"))
+    }
+
+    /**
+     * "Hechos para niños" (La vaca Lola): sin audio suelto en el cliente normal. Lo que se elija
+     * tiene que poder leerse hasta el final; el audio de iOS da 403 pasado el primer pedazo.
+     */
+    @Test
+    fun madeForKidsPlaysToTheEnd() {
+        val r = YouTube.resolve(Track("uSAY4n84A9I", "", ""))
+        val http = OkHttpClient()
+        fun range(spec: String) = http.newCall(Request.Builder().url(r.audioUrl).header("User-Agent", YouTube.USER_AGENT)
+            .header("Range", "bytes=$spec").build()).execute()
+        val total = range("0-65535").use { assertEquals(206, it.code); ChunkedDataSource.totalFrom(it.headers.toMultimap()) }
+        println("  ${r.track.title} · ${r.format} · $total bytes")
+        range("${total - 65536}-${total - 1}").use { assertEquals("final del archivo", 206, it.code) }
+    }
+
     @Test
     fun mixForEndlessRadio() {
         val seed = YouTube.searchSongs(query).first()

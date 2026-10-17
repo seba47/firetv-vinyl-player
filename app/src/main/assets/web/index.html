@@ -137,7 +137,7 @@
 
   <label class="search" for="q">
     <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
-    <input id="q" type="search" placeholder="Buscá un tema, disco o artista" autocomplete="off" enterkeyhint="search">
+    <input id="q" type="search" placeholder="Buscá o pegá un link de YouTube" autocomplete="off" enterkeyhint="search">
   </label>
 
   <div class="tabs" role="tablist">
@@ -222,17 +222,21 @@
     const q = $("q").value.trim();
     clearTimeout(debounce);
     if (!q) { showRecent(); return; }
+    const isLink = /(youtube\.com|youtu\.be)\//i.test(q);
     debounce = setTimeout(async () => {
       const seq = ++searchSeq;
-      $("list-title").textContent = "Buscando…";
+      $("list-title").textContent = isLink ? "Abriendo el link…" : "Buscando…";
       try {
         const r = await fetch(`/api/search?kind=${kind}&q=${encodeURIComponent(q)}`);
         const data = await r.json();
         if (seq !== searchSeq) return;
         if (!r.ok) throw new Error(data.error);
-        showList(data, `Resultados en ${({ song: "temas", album: "discos", playlist: "playlists" })[kind]}`, "No encontré nada con eso. Probá con el nombre del artista.");
+        if (isLink) showList(data, "Desde el link", "");
+        else showList(data, `Resultados en ${({ song: "temas", album: "discos", playlist: "playlists" })[kind]}`, "No encontré nada con eso. Probá con el nombre del artista, o pegá el link de YouTube.");
       } catch (e) {
-        if (seq === searchSeq) showList([], "Resultados", "No pude buscar. Revisá que la tele siga prendida y en el mismo WiFi.");
+        if (seq !== searchSeq) return;
+        if (isLink) showList([], "Desde el link", "No pude abrir ese link. Fijate que sea de una playlist, un disco o un tema de YouTube, y que la playlist sea pública u oculta (no privada).");
+        else showList([], "Resultados", "No pude buscar. Revisá que la tele siga prendida y en el mismo WiFi.");
       }
     }, 350);
   }

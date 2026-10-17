@@ -21,6 +21,7 @@ import org.schabi.newpipe.extractor.services.youtube.linkHandler.YoutubeSearchQu
 import org.schabi.newpipe.extractor.stream.AudioStream
 import org.schabi.newpipe.extractor.stream.DeliveryMethod
 import org.schabi.newpipe.extractor.stream.StreamInfo
+import org.schabi.newpipe.extractor.stream.VideoStream
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -104,6 +105,40 @@ object YouTube {
             videoIdOf(r.url)?.let { Track(it, r.title, r.subtitle, 0, r.thumbnailUrl) }
         }
 
+    /** ¿Parece un link de YouTube / YouTube Music? (para el buscador del celular) */
+    fun looksLikeUrl(text: String): Boolean =
+        Regex("(youtube\\.com|youtu\\.be)/", RegexOption.IGNORE_CASE).containsMatchIn(text.trim())
+
+    /**
+     * Arma una semilla a partir de un link pegado: playlist o disco (`list=`), o un tema
+     * (`watch?v=`, `youtu.be/`, `/shorts/`). Los mixes automáticos (`list=RD…`) se toman como el tema.
+     * Sirve para lo que la búsqueda no encuentra (p. ej. playlists de usuarios).
+     */
+    fun fromUrl(raw: String): SearchResult {
+        init()
+        val url = raw.trim()
+        val list = Regex("[?&]list=([A-Za-z0-9_-]+)").find(url)?.groupValues?.get(1)
+        val video = videoIdOf(url)
+            ?: Regex("youtu\\.be/([A-Za-z0-9_-]{11})").find(url)?.groupValues?.get(1)
+            ?: Regex("/shorts/([A-Za-z0-9_-]{11})").find(url)?.groupValues?.get(1)
+        if (list != null && !list.startsWith("RD")) {
+            val playlistUrl = "https://music.youtube.com/playlist?list=$list"
+            val info = PlaylistInfo.getInfo(service, playlistUrl)
+            val kind = if (list.startsWith("OLAK5uy_")) SeedKind.ALBUM else SeedKind.PLAYLIST
+            val thumb = info.thumbnails.best() ?: info.relatedItems.firstOrNull()?.thumbnails?.best()
+            // los discos vienen como "Album – Recreo" y sin autor: el artista sale del primer tema
+            val title = info.name.replace(Regex("^Album\\s*[–-]\\s*"), "")
+            val artist = cleanArtist(info.uploaderName).ifBlank { cleanArtist(info.relatedItems.firstOrNull()?.uploaderName) }
+            return SearchResult(kind, title, artist, playlistUrl, thumb, info.streamCount)
+        }
+        if (video != null) {
+            val info = StreamInfo.getInfo(service, "https://www.youtube.com/watch?v=$video")
+            val (title, artist) = tidy(info.name, cleanArtist(info.uploaderName))
+            return SearchResult(SeedKind.SONG, title, artist, "https://www.youtube.com/watch?v=$video", info.thumbnails.best(), 1)
+        }
+        error("No reconozco ese link: pegá el de una playlist, un disco o un tema de YouTube")
+    }
+
     /** Temas de un disco o playlist, en orden (hasta [max]). */
     fun playlistTracks(url: String, max: Int = 200): List<Track> {
         init()
@@ -136,9 +171,14 @@ object YouTube {
         init()
         var info = StreamInfo.getInfo(service, track.url)
         var best = bestAudio(info)
-        if (best == null) {
+        // "Hechos para niños": el cliente normal no da audio suelto, solo el video combinado de 360p
+        // (AAC ~96 kbps), que se baja entero sin problema. El audio del cliente de iOS existe pero
+        // sin "PO token" YouTube lo corta con 403 a mitad del archivo: queda como último recurso.
+        var muxed = if (best == null) bestMuxed(info) else null
+        if (best == null && muxed == null) {
             info = withIosClient { StreamInfo.getInfo(service, track.url) }
             best = bestAudio(info)
+            muxed = bestMuxed(info)
         }
         val content: String
         val format: String
@@ -146,9 +186,7 @@ object YouTube {
         if (best != null) {
             content = best.content; format = best.format?.getName() ?: "?"; bitrate = best.averageBitrate
         } else {
-            val muxed = info.videoStreams.filter { it.isUrl && it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }
-                .minByOrNull { it.resolution.filter(Char::isDigit).toIntOrNull() ?: Int.MAX_VALUE }
-                ?: error("Sin audio para ${track.url} (audio: ${info.audioStreams.size}, video: ${info.videoStreams.size})")
+            muxed ?: error("Sin audio para ${track.url} (audio: ${info.audioStreams.size}, video: ${info.videoStreams.size})")
             content = muxed.content; format = "${muxed.format?.getName()} (video ${muxed.resolution}, solo audio)"; bitrate = 0
         }
         return ResolvedTrack(
@@ -167,6 +205,10 @@ object YouTube {
     private fun bestAudio(info: StreamInfo): AudioStream? = info.audioStreams
         .filter { it.isUrl && it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }
         .maxWithOrNull(compareBy<AudioStream>({ it.isOriginalTrack() }, { it.format == MediaFormat.WEBMA_OPUS }, { it.averageBitrate }))
+
+    private fun bestMuxed(info: StreamInfo): VideoStream? = info.videoStreams
+        .filter { it.isUrl && it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }
+        .minByOrNull { it.resolution.filter(Char::isDigit).toIntOrNull() ?: Int.MAX_VALUE }
 
     private val iosLock = Any()
 

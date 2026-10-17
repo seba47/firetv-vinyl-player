@@ -14,7 +14,7 @@ import java.net.Inet4Address
  * Página y API para elegir música desde el celular, en la red local (la tele muestra un QR).
  *   GET  /                  la página (assets/web/index.html)
  *   GET  /api/state         qué suena y estaciones recientes
- *   GET  /api/search?q=&kind=song|album|playlist
+ *   GET  /api/search?q=&kind=song|album|playlist   (q puede ser un link de YouTube / YT Music)
  *   POST /api/play          {kind,title,subtitle,url,thumb}: arranca esa estación
  *   POST /api/crate/add     {kind,title,subtitle,url,thumb}: lo guarda en la caja de discos
  *   POST /api/crate/remove  {url}      POST /api/crate/move {url, delta}
@@ -39,7 +39,11 @@ class WebServer private constructor(private val context: Context, port: Int) : N
                     "playlist" -> SeedKind.PLAYLIST
                     else -> SeedKind.SONG
                 }
-                if (q.isEmpty()) json(JSONArray()) else json(JSONArray(YouTube.search(q, kind).map { it.toJson() }))
+                when {
+                    q.isEmpty() -> json(JSONArray())
+                    YouTube.looksLikeUrl(q) -> json(JSONArray().put(YouTube.fromUrl(q).toJson()))   // link pegado
+                    else -> json(JSONArray(YouTube.search(q, kind).map { it.toJson() }))
+                }
             }
             path == "/api/play" && session.method == Method.POST -> {
                 val seed = Seed.fromJson(JSONObject(body(session)))
