@@ -324,6 +324,7 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean, look: App
             ProgressRow(motion, s)
             Spacer(Modifier.height(s.dp(16f)))
             val status = when {
+                !state.ready -> "Conectando con el reproductor…"
                 state.loading -> "Cargando…"
                 state.current != null && !state.playing -> "En pausa"
                 else -> ""
@@ -361,7 +362,7 @@ fun VinylScreen(state: RadioState, pickerOpen: Boolean, idle: Boolean, look: App
                 Engrave(line, s, 18f, lerp(Palette.Brass, Palette.InkBrass, estufaT))
                 Spacer(Modifier.height(s.dp(10f)))
             }
-            BasicText(cur?.track?.title.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis,
+            BasicText(cur?.track?.title ?: if (!state.ready) "Conectando…" else "", maxLines = 1, overflow = TextOverflow.Ellipsis,
                 style = TextStyle(fontFamily = Fonts.Display, fontSize = s.sp(if (estufa) 46f else 34f), color = lerp(Palette.Cream, Palette.Ink, estufaT)))
             Spacer(Modifier.height(s.dp(6f)))
             BasicText(cur?.track?.artist.orEmpty(), style = body(s, if (estufa) 22f else 18f, lerp(Palette.Cream3, Palette.Ink2, estufaT)))

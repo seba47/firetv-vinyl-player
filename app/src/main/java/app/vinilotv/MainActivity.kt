@@ -22,7 +22,11 @@ import androidx.compose.runtime.remember
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import com.google.common.util.concurrent.ListenableFuture
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import android.util.Log
+
+private const val TAG = "ViniloTV"
 
 /** Sin tocar el control este rato, queda solo el tocadiscos (cuida la pantalla). */
 private const val IDLE_MS = 3 * 60_000L
@@ -93,14 +97,41 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        // Conectarse a la sesión crea el servicio de reproducción (y con él la radio).
-        controller = MediaController.Builder(this, SessionToken(this, ComponentName(this, PlaybackService::class.java))).buildAsync()
+        connectPlayer()
     }
 
     override fun onStop() {
+        connectJob?.cancel()
         controller?.let { MediaController.releaseFuture(it) }
         controller = null
         super.onStop()
+    }
+
+    private var connectJob: Job? = null
+
+    /**
+     * Arranca el servicio de reproducción (y con él la radio) y se conecta a su sesión.
+     * Antes solo se conectaba: si esa conexión quedaba colgada (p. ej. con un servicio viejo a medio
+     * cerrar), la app quedaba muda sin reintentar. Ahora lo arranca explícito y, si en unos segundos
+     * el reproductor no aparece, vuelve a probar.
+     */
+    private fun connectPlayer() {
+        fun attempt() {
+            runCatching { startService(Intent(this, PlaybackService::class.java)) }
+                .onFailure { Log.w(TAG, "No pude arrancar el servicio: ${it.message}") }
+            controller?.let { MediaController.releaseFuture(it) }
+            controller = MediaController.Builder(this, SessionToken(this, ComponentName(this, PlaybackService::class.java))).buildAsync()
+        }
+        attempt()
+        connectJob?.cancel()
+        connectJob = lifecycleScope.launch {
+            repeat(5) { n ->
+                delay(6_000)
+                if (Radio.state.value.ready) return@launch
+                Log.w(TAG, "El reproductor no arrancó, reintento (${n + 1})")
+                attempt()
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
